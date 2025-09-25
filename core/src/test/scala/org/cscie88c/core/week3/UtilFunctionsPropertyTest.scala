@@ -1,4 +1,4 @@
-package org.cscie88c.week3
+package org.cscie88c.core.week3
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
