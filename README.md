@@ -74,25 +74,41 @@ This project can be run in a DevContainer for a consistent development environme
 
 4. Run the Spark application:
 
-   Submit the Spark job using the `spark-submit` command.
+   Submit the Spark job using the `/opt/spark/bin/spark-submit` command.
 
-## Submitting the Spark Job
-1. First, ensure that your Spark application JAR file is built and available in the `apps/spark` directory. You can build the Spark module using SBT:
+## Running the Spark Job in Docker
+1. First, ensure that your Spark application uberjar file is built. You can build the Spark uberjar file by using the following sbt commands:
    ```bash
+   sbt compile
    sbt spark/assembly
    ```
 
-2.    Then, copy the JAR file to the appropriate directory:
+2. Then, copy the JAR file to the `docker/apps/spark` directory:
    ```bash
    cp spark/target/scala-2.13/SparkJob.jar docker/apps/spark
    ```
 
-3.    Finally, submit the Spark job:
+3. Copy any data files to the `data` directory.
+
+   The `data` directory is mounted to the Docker container at `/opt/spark-data`. Ensure that any input data files required by your Spark job are placed in this directory.
+
+4. Next, start the Docker container:
+   ```bash
+   docker compose -f docker-compose-spark.yml up -d
+   ```
+5. Finally, submit the Spark job:
    ```bash
    docker exec -it spark-master /bin/bash
    
-   /opt/spark/bin/spark-submit --class spark.SparkJob --master spark://spark-master:7077 /opt/spark-apps/SparkJob.jar
+   /opt/spark/bin/spark-submit --class org.cscie88c.spark.SparkJob --master spark://spark-master:7077 /opt/spark-apps/SparkJob.jar
    ```
+6. To stop the Docker containers,
+
+   Exit the container shell and run:
+   ```bash
+   docker compose -f docker-compose-spark.yml down
+   ```
+
 ## Docker commands
 
 1. Start the docker container:
