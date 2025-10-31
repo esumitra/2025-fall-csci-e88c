@@ -78,6 +78,7 @@ This project can be run in a DevContainer for a consistent development environme
 
 ## Running the Spark Job in Docker
 1. First, ensure that your Spark application uberjar file is built. You can build the Spark uberjar file by using the following sbt commands:
+   (Zach note: second command takes FOREVER - 336s-412s on my dev machine)
    ```bash
    sbt compile
    sbt spark/assembly
@@ -88,7 +89,7 @@ This project can be run in a DevContainer for a consistent development environme
    cp spark/target/scala-2.13/SparkJob.jar docker/apps/spark
    ```
 
-3. Copy any data files to the `data` directory.
+3. Copy any data files to the `data` directory. (Zach note, I stuck the taxi_zone_lookup.csv in there in the repo, make sure you download the yellow_tripdata_2025-01.parquet file, which isn't included because it's biggish)
 
    The `data` directory is mounted to the Docker container at `/opt/spark-data`. Ensure that any input data files required by your Spark job are placed in this directory.
 

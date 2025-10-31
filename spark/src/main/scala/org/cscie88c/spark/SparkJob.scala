@@ -12,10 +12,13 @@ object SparkJob {
 
     import spark.implicits._
 
-    val df = Seq("Alice", "Bob", "Carol").toDF("name")
-    val greeted = df.map(row => Utils.greet(row.getString(0)))
 
-    greeted.show(false)
+    val df = TaxiZones.zonesFromFile("/opt/spark-data/taxi_zone_lookup.csv")(spark)
+    val pq = TripData.loadParquetData("/opt/spark-data/yellow_tripdata_2025-01.parquet")(spark)
+
+    df.show()
+    pq.show(50)
+
     spark.stop()
   }
 }
