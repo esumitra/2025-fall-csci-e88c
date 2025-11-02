@@ -27,8 +27,8 @@ object SparkJob {
 
     import spark.implicits._
 
-    val filePath = "../Data/bronze/yellow_tripdata_2025-01.parquet"
-    val filePath2 = "../Data/bronze/taxi_zone_lookup.csv"
+    val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
+    val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
 
     val YellowTrip_df = spark.read.parquet(filePath)
     val TaxiZone_df = spark.read.csv(filePath2)
