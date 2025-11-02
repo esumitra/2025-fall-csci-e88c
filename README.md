@@ -152,6 +152,9 @@ For test files.
 
 `sbt "test:scalafix RemoveUnused"`
 
+# Project week8
+Here it is the update for the resolution of taxi trip project
+
 ## License
 Copyright 2025, Edward Sumitra
 
