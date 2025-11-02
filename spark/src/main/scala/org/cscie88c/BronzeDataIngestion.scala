@@ -1,35 +1,27 @@
 package org.cscie88c
 
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
-import org.cscie88c.spark.TripSchema
+import org.cscie88c.spark.YellowTripSchema
+import org.cscie88c.spark.TaxiZoneSchema
 
 object BronzeDataIngestion {
 
-  def readParquet(spark: SparkSession, path: String): Dataset[TripSchema] = {
+  def readParquet(spark: SparkSession, path: String): Dataset[YellowTripSchema] = {
     import spark.implicits._
 
     spark.read
       .parquet(path)
-      .as[TripSchema]
+      .as[YellowTripSchema]
   }
 
-  def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder()
-      .appName("RawDataReader")
-      .master("local[*]")
-      .getOrCreate()
+  def readCSV(spark: SparkSession, path: String): Dataset[TaxiZoneSchema] = {
+    import spark.implicits._
 
-    val filePath = "../Data/bronze/yellow_tripdata_2025-01.parquet"
-
-    val df = spark.read.parquet(filePath)
-
-    // Test Section
-    // println(s"Schema for $filePath:")
-    // df.printSchema()
-    // df.show(5, truncate = false)  // Sample a few rows to inspect
-
-    spark.stop()
+    spark.read
+      .csv(path)
+      .as[TaxiZoneSchema]
   }
+
 }
 
 
