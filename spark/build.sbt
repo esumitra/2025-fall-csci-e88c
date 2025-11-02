@@ -1,8 +1,10 @@
 name := "spark"
 
+// val isLocal = sys.env.get("LOCAL_MODE").contains("1")
+
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % "3.5.1" % Provided,
-  "org.apache.spark" %% "spark-sql"  % "3.5.1" % Provided
+  "org.apache.spark" %% "spark-core" % "3.5.1", // % Provided,
+  "org.apache.spark" %% "spark-sql"  % "3.5.1" //  % Provided
 )
 
 Compile / mainClass := Some("org.cscie88c.spark.SparkJob")
