@@ -6,23 +6,83 @@ import org.cscie88c.spark.TaxiZoneSchema
 
 object BronzeDataIngestion {
 
-  def readParquet(spark: SparkSession, path: String): Dataset[YellowTripSchema] = {
-    import spark.implicits._
+    def main(args: Array[String]): Unit = {
+        val Array(infile, outpath) = args
+        implicit val spark = SparkSession.builder()
+        .appName("BronzeDataIngestion")
+        .master("local[*]")
+        .getOrCreate()
 
+        val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
+        val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
+
+        val YellowTrip_DF: Dataset[YellowTripSchema] = loadParquetFile(filePath)
+        val TaxiZone_DF: Dataset[TaxiZoneSchema] = loadCSVFile(filePath2)
+
+        // Test Section
+        println(s"Schema for $filePath:")
+        YellowTrip_DF.show(5, truncate = false)  // Sample a few rows to inspect
+
+        println(s"Schema for $filePath2:")
+        TaxiZone_DF.show(5, truncate = false)  // Sample a few rows to inspect
+
+
+        spark.stop()
+    }
+
+    def loadParquetFile(filePath: String)(implicit spark: SparkSession): Dataset[YellowTripSchema] = {
+    import spark.implicits._
+    
     spark.read
-      .parquet(path)
+      .format("parquet")
+      .option("header", "true")
+      .option("inferSchema", "true")
+      .csv(filePath)
       .as[YellowTripSchema]
   }
 
-  def readCSV(spark: SparkSession, path: String): Dataset[TaxiZoneSchema] = {
+  def loadCSVFile(filePath: String)(implicit spark: SparkSession): Dataset[TaxiZoneSchema] = {
     import spark.implicits._
-
+    
     spark.read
-      .csv(path)
+      .format("csv")
+      .option("header", "true")
+      .option("inferSchema", "true")
+      .csv(filePath)
       .as[TaxiZoneSchema]
   }
-
 }
+
+/*
+import spark.implicits._
+
+        val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
+        val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
+
+        val YellowTrip_df = spark
+                .read
+                .format("parquet")
+                .option("header","true")
+                .option("inferSchema","true")
+                .load(filePath)
+
+        val TaxiZone_df = spark
+                .read
+                .format("csv")
+                .option("header","true")
+                .option("inferSchema","true")
+                .load(filePath2)
+
+        // Test Section
+        println(s"Schema for $filePath:")
+        YellowTrip_df.show(5, truncate = false)  // Sample a few rows to inspect
+
+        // println(s"Schema for $filePath2:")
+        // TaxiZone_df.show(5, truncate = false)  // Sample a few rows to inspect
+
+*/
+
+
 
 
 /*
