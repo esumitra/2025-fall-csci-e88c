@@ -32,6 +32,6 @@ case class YellowTripSchema(
 case class TaxiZoneSchema (
     LocationID: Int,
     Borough: String,
-    Zone: Int,
+    Zone: String,
     Service_zone: String
     )
