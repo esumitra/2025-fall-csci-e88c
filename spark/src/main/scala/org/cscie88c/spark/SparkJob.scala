@@ -10,6 +10,8 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
 object SparkJob {
+  // Original scaffolding code
+
   // def main(args: Array[String]): Unit = {
   //   val spark = SparkSession.builder()
   //     .appName("SampleSparkJob")
@@ -36,13 +38,15 @@ object SparkJob {
       val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
 
       val trips: Dataset[YellowTripSchema] =  BronzeDataIngestion.loadParquetFile(filePath)
-      // val zones: Dataset[TaxiZoneSchema] = BronzeDataIngestion.loadCSVFile(filePath2) // Erroring atm
+      // val zones: Dataset[TaxiZoneSchema] = BronzeDataIngestion.loadCSVFile(filePath2) // Erroring atm!
+
 
       // Test Section
       spark.sparkContext.setLogLevel("ERROR") // Show reduce log bloat for testing
+
       spark.read.parquet(filePath).printSchema()
 
-      println("How many lines is the parquet file: " + trips.count())
+      println(s"How many records in the parquet file: ${trips.count()}")
 
 
       println(s"Schema for $filePath:")
@@ -51,9 +55,8 @@ object SparkJob {
       // println(s"Schema for $filePath2:")
       // zones.show(5, truncate = false)  // Sample a few rows to inspect
 
-      // println("Start Write")
+      // This generated a folder called output.csv with segmented files
       // trips.write.mode("overwrite").option("header", "true").csv("output.csv")
-      // println("Stop Write")
 
       println("=== Null Check ===")
       DataQualityChecks.nullPercentages(trips.toDF()).show(false)
@@ -61,50 +64,9 @@ object SparkJob {
       println("=== Range Check ===")
       DataQualityChecks.rangeChecks(trips).show(false)
 
-      println("=== Referential Integrity Check ===")
+      // println("=== Referential Integrity Check ===")
       // DataQualityChecks.referentialCheck(trips, zones).show(false)
 
       spark.stop()
   }
-
-  // def loadParquetFile(filePath: String)(implicit spark: SparkSession): Dataset[YellowTripSchema] = {
-  //     import spark.implicits._
-
-  //     // Get field names from schema with a sequence
-  //     val columns: Seq[String] = Seq(
-  //     "tpep_pickup_datetime",
-  //     "tpep_dropoff_datetime",
-  //     "trip_distance",
-  //     "PULocationID",
-  //     "DOLocationID",
-  //     "fare_amount"
-  //     )
-
-  //     spark.read
-  //     .format("parquet")
-  //     .option("header", "true")
-  //     //       .option("inferSchema", "true")
-  //     .parquet(filePath)
-  //     .select(columns.map(col): _*) // Selects only needed columns defined above
-  //     //       .selectExpr(columns: _*)
-  //     // .select("tpep_pickup_datetime",
-  //     //         "tpep_dropoff_datetime",
-  //     //         "trip_distance",
-  //     //         "PULocationID",
-  //     //         "DOLocationID",
-  //     //         "fare_amount"
-  //     //         )
-  //     .as[YellowTripSchema]
-  // }
-
-  // def loadCSVFile(filePath: String)(implicit spark: SparkSession): Dataset[TaxiZoneSchema] = {
-  //     import spark.implicits._
-  
-  //     spark.read
-  //     .format("csv")
-  //     .option("header", "true")
-  //     .option("inferSchema", "true")
-  //     .csv(filePath)
-  //     .as[TaxiZoneSchema]
-  // }
 }
