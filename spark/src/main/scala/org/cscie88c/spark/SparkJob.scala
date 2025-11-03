@@ -232,10 +232,6 @@ object SparkJob {
     val peakPercentage: Double = tripsByHourPct.agg(F.max("percentage").as("max_pct"))
       .select("max_pct").as[Double].collect().headOption.getOrElse(0.0)
 
-    // Weekly total revenue (over filtered range)
-    val weeklyRevenue: Double = withHour.agg(F.sum(F.col("total_amount")).as("revenue"))
-      .select("revenue").as[Double].collect().headOption.getOrElse(0.0)
-
     // Average revenue per mile (guard against zero or null distances) over filtered range
     val avgRevenuePerMile: Double = withHour.filter(F.col("trip_distance") > 0)
       .agg(F.avg(F.col("total_amount") / F.col("trip_distance")).as("avg_rev_per_mile"))
