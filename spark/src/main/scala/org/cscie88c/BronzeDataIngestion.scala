@@ -1,40 +1,39 @@
 package org.cscie88c
 
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
-import org.cscie88c.spark.YellowTripSchema
-import org.cscie88c.spark.TaxiZoneSchema
+import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
 object BronzeDataIngestion {
 
-    def main(args: Array[String]): Unit = {
-        val Array(infile, outpath) = args
-        implicit val spark = SparkSession.builder()
-                .appName("BronzeDataIngestion")
-                .master("local[*]")
-                .getOrCreate()
+    // As suspected, SparkJob is the primary main, and we do not need this main here. Changes made to it don't show up when running SparkJob main
 
-        val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
-        val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
+    // def main(args: Array[String]): Unit = {
+    //     val Array(infile, outpath) = args
+    //     implicit val spark = SparkSession.builder()
+    //             .appName("BronzeDataIngestion")
+    //             .master("local[*]")
+    //             .getOrCreate()
 
-        val YellowTrip_DF: Dataset[YellowTripSchema] = loadParquetFile(filePath)
-        val TaxiZone_DF: Dataset[TaxiZoneSchema] = loadCSVFile(filePath2)
+    //     val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
+    //     val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
 
-        // Test Section
-        spark.read.parquet(filePath).printSchema()
+    //     val YellowTrip_DF: Dataset[YellowTripSchema] = loadParquetFile(filePath)
+    //     val TaxiZone_DF: Dataset[TaxiZoneSchema] = loadCSVFile(filePath2)
 
-        println(s"Schema for $filePath:")
-        YellowTrip_DF.show(10, truncate = false)  // Sample a few rows to inspect
+    //     // Test Section
+    //     spark.read.parquet(filePath).printSchema()
 
-        println(s"Schema for $filePath2:")
-        TaxiZone_DF.show(10, truncate = false)  // Sample a few rows to inspect
+    //     println(s"Schema for $filePath:")
+    //     YellowTrip_DF.show(10, truncate = false)  // Sample a few rows to inspect
 
-        // This generated a folder called output.csv with segmented files
-        // YellowTrip_DF.write.mode("overwrite").option("header", "true").csv("output.csv") 
+    //     println(s"Schema for $filePath2:")
+    //     TaxiZone_DF.show(10, truncate = false)  // Sample a few rows to inspect
 
-        spark.stop()
-    }
+
+    //     spark.stop()
+    // }
 
     def loadParquetFile(filePath: String)(implicit spark: SparkSession): Dataset[YellowTripSchema] = {
         import spark.implicits._

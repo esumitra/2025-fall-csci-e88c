@@ -1,10 +1,8 @@
 package org.cscie88c.spark
 
 import org.cscie88c.core.Utils
-import org.cscie88c.spark.YellowTripSchema
-import org.cscie88c.spark.TaxiZoneSchema
-import org.cscie88c.BronzeDataIngestion
-import org.cscie88c.DataQualityChecks
+import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema} // Greg's Files
+import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks} // Greg's Files
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -114,7 +112,15 @@ object SparkJob {
       DataQualityChecks.rangeChecks(tripsDS).show(false)
 
       println("=== Referential Integrity Check ===")
-      // DataQualityChecks.referentialCheck(tripsDS, zonesDS).show(false)
+      DataQualityChecks.referentialCheck(tripsDS, zonesDS).show(false)
+
+      println("--- TEST RUN SUMMARY START HERE ---")
+        val summaryDF = RunSummary.generateSummary(tripsDS, zonesDS)
+        summaryDF.show(false)
+        summaryDF.write.mode("overwrite")
+            .option("header", "true")
+            .csv("../data/bronze/summary.csv")
+        println("--- TEST RUN SUMMARY END HERE ---")
 
       spark.stop()
   }
