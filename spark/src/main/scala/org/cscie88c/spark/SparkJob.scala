@@ -34,26 +34,26 @@ object SparkJob {
               .master("local[*]")
               .getOrCreate()
 
-      val filePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
-      val filePath2 = "../data/bronze/taxi_zone_lookup.csv"
+      val yellowTripDataFilePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
+      val taxiZoneLookupFilePath = "../data/bronze/taxi_zone_lookup.csv"
 
-      val trips: Dataset[YellowTripSchema] =  BronzeDataIngestion.loadParquetFile(filePath)
-      // val zones: Dataset[TaxiZoneSchema] = BronzeDataIngestion.loadCSVFile(filePath2) // Erroring atm!
+      val trips: Dataset[YellowTripSchema] =  BronzeDataIngestion.loadParquetFile(yellowTripDataFilePath)
+      val zones: Dataset[TaxiZoneSchema] = BronzeDataIngestion.loadCSVFile(taxiZoneLookupFilePath) // Erroring atm!
 
 
       // Test Section
       spark.sparkContext.setLogLevel("ERROR") // Show reduce log bloat for testing
 
-      spark.read.parquet(filePath).printSchema()
+      spark.read.parquet(yellowTripDataFilePath).printSchema()
 
       println(s"How many records in the parquet file: ${trips.count()}")
 
 
-      println(s"Schema for $filePath:")
+      println(s"Schema for $yellowTripDataFilePath:")
       trips.show(15, truncate = false)  // Sample a few rows to inspect
 
-      // println(s"Schema for $filePath2:")
-      // zones.show(5, truncate = false)  // Sample a few rows to inspect
+      println(s"Schema for $taxiZoneLookupFilePath:")
+      zones.show(5, truncate = false)  // Sample a few rows to inspect
 
       // This generated a folder called output.csv with segmented files
       // trips.write.mode("overwrite").option("header", "true").csv("output.csv")
@@ -64,7 +64,7 @@ object SparkJob {
       println("=== Range Check ===")
       DataQualityChecks.rangeChecks(trips).show(false)
 
-      // println("=== Referential Integrity Check ===")
+      println("=== Referential Integrity Check ===")
       // DataQualityChecks.referentialCheck(trips, zones).show(false)
 
       spark.stop()
