@@ -79,9 +79,14 @@ This project can be run in a DevContainer for a consistent development environme
 ## Running the Spark Job in Docker
 1. First, ensure that your Spark application uberjar file is built. You can build the Spark uberjar file by using the following sbt commands:
    (Zach note: second command takes FOREVER - 336s-412s on my dev machine)
+2. Further Zach note, I've managed to knock this down a bit if you enter the SBT shell and increase the RAM available to SBT in spark/build.sbt. I used:
+3. javaOptions ++= Seq("-Xms512M", "-Xmx16G", "-XX:+CMSClassUnloadingEnabled"), which is in the repo now and allows the jvm to use up to 16GB of RAM to compile things
+4. Also enter the sbt shell first, which keeps some of it a little bit warm and knocks it down to a still unreasonable but slightly less mind numbing 2:30
    ```bash
-   sbt compile
-   sbt spark/assembly
+   sbt 
+   compile
+   spark/assembly
+   exit
    ```
 
 2. Then, copy the JAR file to the `docker/apps/spark` directory:

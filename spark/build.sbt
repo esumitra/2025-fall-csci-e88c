@@ -4,7 +4,18 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "3.5.1" % Provided,
   "org.apache.spark" %% "spark-sql"  % "3.5.1" % Provided
 )
+// Enable parallel execution
+concurrentRestrictions in Global += Tags.limit(Tags.Test, 4)
 
+// Set fork options to improve memory usage
+fork := true
+javaOptions ++= Seq("-Xms512M", "-Xmx16G", "-XX:+CMSClassUnloadingEnabled")
+
+// Enable cached resolution
+updateOptions := updateOptions.value.withCachedResolution(true)
+
+// Speed up compilation
+scalacOptions ++= Seq("-Ypartial-unification", "-Ywarn-unused-import")
 Compile / mainClass := Some("org.cscie88c.spark.SparkJob")
 
 assembly / mainClass := Some("org.cscie88c.spark.SparkJob")
