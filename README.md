@@ -128,6 +128,24 @@ This project can be run in a DevContainer for a consistent development environme
    docker compose -f docker-compose-spark.yml down
    ```
 
+## Running a Beam job locally
+
+1. Compile and build the Beam files
+   ```bash
+   sbt compile
+   sbt package
+   ```
+2. Built the native executable files using sbt-native-packager:
+   ```bash
+   sbt beam/stage
+   ```
+3. Copy any data files to the `data` directory.
+
+4. Run the Beam job using the generated script in `beam/target/universal/stage/bin/`:
+   ```bash
+   ./beam/target/universal/stage/bin/beam --inputFile=<input-file-path> --outputPath=<output-path>
+   ```
+
 ### Static Analysis Tools
 
 #### Scalafmt
