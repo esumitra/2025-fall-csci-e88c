@@ -153,7 +153,133 @@ For test files.
 `sbt "test:scalafix RemoveUnused"`
 
 # Project week8
-Here it is the update for the resolution of taxi trip project
+This section documents the KPIs produced by the Spark job and how to run the job locally using the provided `runSparkJob.sh` script.
+
+### Notes on data filtering and time window
+All KPI calculations operate on the filtered dataset produced by `cleanData(...)` and are computed for a recent window of data determined by the latest pickup timestamp in the input dataset. By default the Spark job uses the last 4 weeks of data (this can be changed by passing a third argument to the job). The cutoff timestamp is computed as:
+
+cutoff_ts = max(pickup_ts) - (weeks * 7 days)
+
+Only rows with pickup_ts >= cutoff_ts are included in the KPI calculations.
+
+### KPIs and exact formulas
+The Spark job writes a dataset with the following KPI fields. The formulas below match the code implementation in `spark/src/main/scala/org/cscie88c/spark/SparkJob.scala`.
+
+- week_start (string)
+  - The ISO week start date for the trips included in the row (computed with date_trunc("week", pickup_ts) formatted as `yyyy-MM-dd`).
+
+- borough (string)
+  - A borough placeholder derived from `PULocationID` (formatted as `PULocation_<id>`) or `UNKNOWN` when missing.
+
+- trip_volume (Long)
+  - Formula: trip_volume = COUNT(*)
+  - Meaning: number of trips in that week for that borough (after cleaning and filtering by the time window).
+
+- total_trips (Long)
+  - Formula: total_trips = COUNT(*) over the same week across all boroughs
+  - Meaning: total number of trips in that week (used to compute percentages).
+
+- total_revenue (Double)
+  - Formula: total_revenue = SUM(total_amount)
+  - Meaning: total revenue (sum of `total_amount`) for the week across all boroughs.
+
+- per_hour_trip_percentage (Double)
+  - Code computation summary:
+    1. Compute trips per pickup hour h: hour_count(h) = COUNT(*) for each hour h (0..23) over the filtered range.
+    2. totalTrips = SUM_h hour_count(h)
+    3. peakPercentage = (MAX_h hour_count(h) / totalTrips) * 100
+  - Formula (in math form): per_hour_trip_percentage = (max_h COUNT(trips where hour=h) / totalTrips) * 100
+  - Meaning: percentage of trips that occurred in the busiest (peak) hour during the filtered range. (If totalTrips == 0, this is set to 0.)
+
+- avg_trip_time_vs_distance (Long)
+  - Code computation summary:
+    1. trip_minutes = (unix_timestamp(dropoff_ts) - unix_timestamp(pickup_ts)) / 60.0
+    2. minutes_per_mile = trip_minutes / trip_distance  (only for rows where trip_distance > 0)
+    3. avg_minutes_per_mile = AVG(minutes_per_mile)
+    4. avg_trip_time_vs_distance = CAST(avg_minutes_per_mile AS Long)
+  - Formula (in math form): avg_trip_time_vs_distance = CAST( AVG( ( (dropoff_ts - pickup_ts) / 60 ) / trip_distance ) AS LONG )
+  - Meaning: average minutes per mile across trips (returned as a long integer). Trips with non-positive distance are excluded from this calculation.
+
+- avg_revenue_per_mile (Double)
+  - Formula: avg_revenue_per_mile = AVG( total_amount / trip_distance )  (computed only for trip_distance > 0)
+  - Meaning: the average revenue per mile across trips in the filtered window.
+
+- night_trip_percentage (Long)
+  - Code computation summary: nightTripCount = COUNT(trips where hour >= 0 and hour < 6)
+  - The code writes `night_trip_percentage` as this nightTripCount (i.e., a raw count), not an actual percentage.
+  - Formula (as implemented): night_trip_percentage = COUNT( trips where 0 <= hour < 6 )
+  - Note: despite the name `night_trip_percentage`, this value is the count of night trips. If you need an actual percentage, compute: 100 * night_trip_count / totalTrips.
+
+### Where outputs are written
+The Spark job writes two locations under the provided output path argument (outpath):
+
+- `outpath/weekly_metrics` — parquet files containing weekly metrics grouped by `week_start` and `borough` (this is written inside `calculateKPIs(...)`).
+- `outpath/kpis` — parquet files containing the final KPIs dataset (this is written by `saveOutput(...)`).
+
+When using the included `runSparkJob.sh`, the script passes `/opt/spark-data/output/` as the `outpath`. Because the host `data/` directory is mounted into the container at `/opt/spark-data`, the resulting files will appear on the host under `data/output/kpis` and `data/output/weekly_metrics`.
+
+### How to run the Spark job (quick steps)
+1. Place your input Parquet file into the repository `data/` folder (example: `data/yellow_tripdata_2025-01.parquet`). The job expects a Parquet file with the taxi schema used in `TaxiTrip` (see `spark/src/main/scala/.../SparkJob.scala` for required columns).
+
+2. From the repository root, make the run script executable (if needed) and run it:
+
+```bash
+chmod +x runSparkJob.sh
+./runSparkJob.sh
+```
+
+The `runSparkJob.sh` script will:
+- build the Spark uberjar (`sbt spark/assembly`),
+- copy the jar to `docker/apps/spark`,
+- start the Docker compose environment, and
+- submit the Spark job inside the `spark-master` container (the script uses `/opt/spark-data/yellow_tripdata_2025-01.parquet` as the example input and `/opt/spark-data/output/` as the output directory).
+
+3. After the job completes, inspect the output directory on the host:
+
+- `data/output/kpis` (Parquet files with the final KPIs)
+- `data/output/weekly_metrics` (Parquet files with weekly metrics by borough)
+
+You can inspect Parquet files with tools like `parquet-tools` or by reading them with Spark/Python. Optionally, you may `docker exec` into the `spark-master` container and inspect `/opt/spark-data/output/` directly.
+
+### Passing a custom number of weeks
+The Spark job accepts a third optional argument: the number of weeks to include in KPI calculations (default is 4). To use a different number of weeks you can submit the job manually (or modify `runSparkJob.sh`) and pass a third parameter. Example (inside the container):
+
+```bash
+/opt/spark/bin/spark-submit --class org.cscie88c.spark.SparkJob --master local[*] /opt/spark-apps/SparkJob.jar /opt/spark-data/yellow_tripdata_2025-01.parquet /opt/spark-data/output/ 8
+```
+
+---
+
+### Evidence.dev Streamlit dashboard
+
+We added a lightweight Evidence.dev dashboard that automatically reads the Parquet outputs produced by the Spark job and provides a simple interactive view of the KPIs.
+
+- Location (dashboard source): `docker/apps/spark/dashboard`
+- Compose service: `evidence-dashboard` in `docker-compose-spark.yml`
+- Environment: the service sets `EVIDENCE_ENV=evidence.dev` and mounts the host `./data` directory into the container at `/opt/spark-data`.
+- Port: the dashboard listens on port `8501` (exposed from the container to the host).
+
+What it reads
+- `./data/output/kpis` — final KPIs (parquet)
+- `./data/output/weekly_metrics` — weekly metrics (parquet)
+
+Quick start (from repo root)
+
+1. Ensure you've run the Spark job and generated the Parquet outputs (for example with `./runSparkJob.sh`). The Spark job writes to `/opt/spark-data/output` inside the containers which maps to `./data/output` on the host.
+
+2. Build and start the dashboard with docker-compose:
+
+```bash
+docker-compose -f docker-compose-spark.yml build evidence-dashboard
+docker-compose -f docker-compose-spark.yml up -d spark-master spark-worker evidence-dashboard
+```
+
+3. Open the dashboard at: http://localhost:8501
+
+Notes
+- If the dashboard reports "No parquet outputs found", verify that `data/output/kpis` and `data/output/weekly_metrics` exist on the host and contain parquet files.
+- The dashboard is a Streamlit app and the source is intentionally simple; feel free to extend it with filters, additional charts, or auth as needed.
+
 
 ## License
 Copyright 2025, Edward Sumitra

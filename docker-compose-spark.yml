@@ -25,3 +25,19 @@ services:
     volumes:
       - ./data:/opt/spark-data
       - ./docker/apps/spark:/opt/spark-apps
+
+  evidence-dashboard:
+    # Lightweight Streamlit dashboard that reads the parquet outputs produced by SparkJob
+    build: ./docker/apps/spark/dashboard
+    container_name: evidence-dashboard
+    environment:
+      - EVIDENCE_ENV=evidence.dev
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - spark-master
+    ports:
+      - "8501:8501"
+    volumes:
+      # mount the data directory so the dashboard can read parquet outputs written by Spark
+      - ./data:/opt/spark-data:rw
+    restart: unless-stopped

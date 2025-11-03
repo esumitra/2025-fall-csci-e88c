@@ -40,19 +40,6 @@ case class ProjectKPIs(
 /**
 ●	Reproducible environment: sbt project, README with make/run commands. Private fork the student repository with access granted to team members and staff.
 
-●	Transformations: time bucketing to week, dimensional join(s) (e.g., taxi zone lookup)
-
-●	Outputs:
-
-○	Bronze: raw (optionally corrected)
-
-○	Silver: cleaned & conformed
-
-○	Gold: aggregate KPIs
-
-
-●	Tests: unit tests for transforms; dataset-level checks for KPIs. Unit tests should not run spark.
-
 ●	Documentation: KPI definitions (exact formulas)
 
   */
