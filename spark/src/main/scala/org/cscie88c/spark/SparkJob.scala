@@ -26,21 +26,19 @@ case class TaxiTrip(
 )
 
 case class ProjectKPIs(
+  week_start: String,
+  borough: String,
+  trip_volume: Long,
+  total_trips: Long,
+  total_revenue: Double,
   per_hour_trip_percentage: Double,
-  weekly_trip_volume_by_borough: Long,
   avg_trip_time_vs_distance: Long,
-  weekly_total_trips_and_total_revenue: Double,
   avg_revenue_per_mile: Double,
   night_trip_percentage: Long
 )
 
 /**
-  * Functional requirements:
-    ●	Batch only (no streaming). Pipeline runs for a defined date range (i.e., last 4 weeks).
-
 ●	Reproducible environment: sbt project, README with make/run commands. Private fork the student repository with access granted to team members and staff.
-
-●	Data quality checks (DQ): schema, null rates, unique IDs where applicable, valid ranges (e.g., fare ≥ 0), and completeness by week. Fail fast on critical errors.
 
 ●	Transformations: time bucketing to week, dimensional join(s) (e.g., taxi zone lookup)
 
@@ -64,22 +62,47 @@ object SparkJob {
     val Array(infile, outpath) = args
     implicit val spark = SparkSession.builder()
       .appName("Week8GroupProject")
-      .master("local[*]")
+      // do not hardcode master here so spark-submit's --master is respected
       .getOrCreate()
 
-    // // 1. Load input file (bronze layer)
-    val inputMovieData: Dataset[TaxiTrip] = loadInputFile(infile)
+    // Basic run logging to help debugging when running inside Docker
+    println(s"[SparkJob] args=${args.mkString(" ")}")
+    spark.sparkContext.setLogLevel("WARN")
 
-    // // 2. Cleanup data (silver layer)
-    val cleanMovieData: Dataset[TaxiTrip] = cleanData(inputMovieData)
+    try {
+      // 1. Load input file (bronze layer)
+      println(s"[SparkJob] Loading input: $infile")
+      val inputMovieData: Dataset[TaxiTrip] = loadInputFile(infile)
+      println(s"[SparkJob] Loaded input rows=${inputMovieData.count}")
 
-    // 3. Calculate aggregate KPIs (gold layer)
-    val projectKPIs: Dataset[ProjectKPIs] = calculateKPIs(cleanMovieData)
+      // 2. Cleanup data (silver layer)
+      println("[SparkJob] Cleaning data")
+      val cleanMovieData: Dataset[TaxiTrip] = cleanData(inputMovieData)
+      println(s"[SparkJob] Cleaned rows=${cleanMovieData.count}")
 
-    // 4. Save output
-    saveOutput(projectKPIs, outpath)
+        // 3. Calculate aggregate KPIs (gold layer)
+        println("[SparkJob] Calculating KPIs")
+        // optional 3rd arg: number of weeks to include (default 4)
+        val weeksToInclude: Int = if (args.length >= 3) try { args(2).toInt } catch { case _: Throwable => 4 } else 4
+        val projectKPIs: Dataset[ProjectKPIs] = calculateKPIs(cleanMovieData, weeksToInclude, outpath)
+      println(s"[SparkJob] KPIs rows=${projectKPIs.count}")
+      projectKPIs.show(false)
 
-    spark.stop()
+      // 4. Save output
+  val kpisOut = if (outpath.endsWith("/")) outpath + "kpis" else outpath + "/kpis"
+  println(s"[SparkJob] Saving KPIs to: $kpisOut")
+  saveOutput(projectKPIs, kpisOut)
+  println("[SparkJob] Save complete")
+
+      spark.stop()
+    } catch {
+      case t: Throwable =>
+        println(s"[SparkJob][ERROR] Job failed: ${t.getMessage}")
+        t.printStackTrace()
+        try { spark.stop() } catch { case _: Throwable => }
+        // rethrow to ensure spark-submit sees a non-zero exit
+        System.exit(1)
+    }
   }
 
   def loadInputFile(filePath: String)(implicit spark: SparkSession): Dataset[TaxiTrip] = {
@@ -186,49 +209,120 @@ object SparkJob {
     cleaned.as[TaxiTrip]
   }
 
-  def calculateKPIs(inputData: org.apache.spark.sql.Dataset[TaxiTrip])(implicit spark: SparkSession): org.apache.spark.sql.Dataset[ProjectKPIs] = {
+  def calculateKPIs(inputData: org.apache.spark.sql.Dataset[TaxiTrip],
+                    weeks: Int = 4,
+                    outputPath: String)(implicit spark: SparkSession): org.apache.spark.sql.Dataset[ProjectKPIs] = {
     import spark.implicits._
-    // Compute total trips (used to convert counts to percentages)
-    val totalTrips: Long = inputData.count()
+  // Compute total trips (used to convert counts to percentages)
 
     // Safely extract pickup hour (attempt to cast to Spark timestamp)
-    val withHour = inputData
+    // and filter to the requested recent weeks range (based on the dataset max pickup timestamp)
+    val withTs = inputData
       .withColumn("pickup_ts", F.col("tpep_pickup_datetime").cast("timestamp"))
       .withColumn("hour", F.hour(F.col("pickup_ts")))
 
-    // Trips per hour and percentage of total trips per hour
-    val tripsByHour = withHour.groupBy("hour").count()
-    val tripsByHourPct = tripsByHour.withColumn("percentage", F.col("count") / F.lit(totalTrips) * 100)
+    // Determine cutoff (weeks) relative to max pickup timestamp
+    val maxPickupOpt = withTs.agg(F.max("pickup_ts").as("max_ts")).select("max_ts").as[java.sql.Timestamp].collect().headOption
+    val cutoffTsLiteral = maxPickupOpt.map { ts =>
+      val cutoffMillis = ts.getTime - (weeks.toLong * 7L * 24L * 60L * 60L * 1000L)
+      new java.sql.Timestamp(Math.max(0L, cutoffMillis))
+    }
+
+    val filtered = cutoffTsLiteral match {
+      case Some(cutoffTs) =>
+        withTs.filter(F.col("pickup_ts").isNotNull && F.col("pickup_ts") >= F.lit(cutoffTs))
+      case None => withTs
+    }
+
+    val withHour = filtered
+
+  // Trips per hour and percentage of total trips per hour (use filtered total)
+  val totalTrips: Long = withHour.count()
+  val tripsByHour = withHour.groupBy("hour").count()
+  val tripsByHourPct = if (totalTrips > 0) tripsByHour.withColumn("percentage", F.col("count") / F.lit(totalTrips) * 100) else tripsByHour.withColumn("percentage", F.lit(0))
 
     // Peak-hour percentage (percentage of trips that occurred in the busiest hour)
     val peakPercentage: Double = tripsByHourPct.agg(F.max("percentage").as("max_pct"))
       .select("max_pct").as[Double].collect().headOption.getOrElse(0.0)
 
-    // Weekly total revenue
-    val weeklyRevenue: Double = inputData.agg(F.sum(F.col("total_amount")).as("revenue"))
+    // Weekly total revenue (over filtered range)
+    val weeklyRevenue: Double = withHour.agg(F.sum(F.col("total_amount")).as("revenue"))
       .select("revenue").as[Double].collect().headOption.getOrElse(0.0)
 
-    // Average revenue per mile (guard against zero or null distances)
-    val avgRevenuePerMile: Double = inputData.filter(F.col("trip_distance") > 0)
+    // Average revenue per mile (guard against zero or null distances) over filtered range
+    val avgRevenuePerMile: Double = withHour.filter(F.col("trip_distance") > 0)
       .agg(F.avg(F.col("total_amount") / F.col("trip_distance")).as("avg_rev_per_mile"))
       .select("avg_rev_per_mile").as[Double].collect().headOption.getOrElse(0.0)
 
-    // Night trip count (define night as hours 0-5 inclusive)
-    val nightTripCount: Long = withHour.filter(F.col("hour") >= 0 && F.col("hour") < 6).count()
+  // Night trip count (define night as hours 0-5 inclusive)
+  val nightTripCount: Long = withHour.filter(F.col("hour") >= 0 && F.col("hour") < 6).count()
 
-    // We don't yet have a borough lookup (dimensional join), and avg_trip_time_vs_distance isn't defined.
-    // For now: set weekly_trip_volume_by_borough to totalTrips and leave avg_trip_time_vs_distance as 0.
-    val weeklyTripVolumeByBorough: Long = totalTrips
-    val avgTripTimeVsDistance: Long = 0L
+    // Calculate average trip time (in minutes) per mile
+    val withTripTime = withHour
+      .withColumn("pickup_ts", F.col("tpep_pickup_datetime").cast("timestamp"))
+      .withColumn("dropoff_ts", F.col("tpep_dropoff_datetime").cast("timestamp"))
+      .withColumn("trip_minutes", 
+        (F.unix_timestamp(F.col("dropoff_ts")) - F.unix_timestamp(F.col("pickup_ts"))) / 60.0)
+      .filter(F.col("trip_distance") > 0) // avoid divide by zero
+      .withColumn("minutes_per_mile", F.col("trip_minutes") / F.col("trip_distance"))
 
-    Seq(ProjectKPIs(
-      per_hour_trip_percentage = peakPercentage,
-      weekly_trip_volume_by_borough = weeklyTripVolumeByBorough,
-      avg_trip_time_vs_distance = avgTripTimeVsDistance,
-      weekly_total_trips_and_total_revenue = weeklyRevenue,
-      avg_revenue_per_mile = avgRevenuePerMile,
-      night_trip_percentage = nightTripCount
-    )).toDS()
+    val avgTripTimeVsDistance: Long = withTripTime
+      .agg(F.avg("minutes_per_mile").cast("long").as("avg_time_per_mile"))
+      .select("avg_time_per_mile")
+      .as[Long]
+      .collect()
+      .headOption
+      .getOrElse(0L)
+
+    // --- Weekly metrics by borough ---
+    // No external borough lookup supplied in the repository; fall back to using PULocationID as a borough placeholder.
+    val dfWithBorough = withHour.withColumn("borough",
+      F.when(F.col("PULocationID").isNotNull, F.concat(F.lit("PULocation_"), F.col("PULocationID").cast("string"))).otherwise(F.lit("UNKNOWN")))
+
+    // compute a week_start (date string) using date_trunc to get the week's starting date
+    val dfWithWeek = dfWithBorough.withColumn("week_start", F.date_format(F.date_trunc("week", F.col("pickup_ts")), "yyyy-MM-dd"))
+
+    // Calculate weekly totals by borough
+    val weeklyByBorough = dfWithWeek
+      .groupBy("week_start", "borough")
+      .agg(
+        F.count("*").as("trip_volume"),
+        F.sum("total_amount").as("borough_revenue")
+      )
+
+    // Calculate weekly totals across all boroughs
+    val weeklyTotals = dfWithWeek
+      .groupBy("week_start")
+      .agg(
+        F.count("*").as("total_trips"),
+        F.sum("total_amount").as("total_revenue")
+      )
+
+    // Join the borough-level and total metrics
+    val weeklyMetrics = weeklyByBorough
+      .join(weeklyTotals, Seq("week_start"))
+      .select(
+        F.col("week_start"),
+        F.col("borough"),
+        F.col("trip_volume"),
+        F.col("total_trips"),
+        F.col("total_revenue"),
+        F.lit(peakPercentage).as("per_hour_trip_percentage"),
+        F.lit(avgTripTimeVsDistance).as("avg_trip_time_vs_distance"),
+        F.lit(avgRevenuePerMile).as("avg_revenue_per_mile"),
+        F.lit(nightTripCount).as("night_trip_percentage")
+      )
+      .withColumn("per_hour_trip_percentage", F.lit(peakPercentage))
+      .withColumn("avg_trip_time_vs_distance", F.lit(avgTripTimeVsDistance))
+      .withColumn("avg_revenue_per_mile", F.lit(avgRevenuePerMile))
+      .withColumn("night_trip_percentage", F.lit(nightTripCount))
+      .as[ProjectKPIs]
+
+    // Write out detailed weekly metrics
+    weeklyMetrics.write.mode("overwrite").parquet(outputPath + "/weekly_metrics")
+
+    // Return the full dataset of KPIs
+    weeklyMetrics
   }
 
   def saveOutput(kpis: org.apache.spark.sql.Dataset[ProjectKPIs], outputPath: String): Unit = {
