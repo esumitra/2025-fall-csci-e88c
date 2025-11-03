@@ -15,7 +15,6 @@ javaOptions ++= Seq("-Xms512M", "-Xmx16G", "-XX:+CMSClassUnloadingEnabled")
 updateOptions := updateOptions.value.withCachedResolution(true)
 
 // Speed up compilation
-scalacOptions ++= Seq("-Ypartial-unification", "-Ywarn-unused-import")
 Compile / mainClass := Some("org.cscie88c.spark.SparkJob")
 
 assembly / mainClass := Some("org.cscie88c.spark.SparkJob")
