@@ -13,9 +13,9 @@ libraryDependencies ++= Seq(
 )
 dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % "2.14.2"
 
-Compile / mainClass := Some("beam.BeamJob")
+Compile / mainClass := Some("org.cscie88c.beam.BeamJob")
 
-assembly / mainClass := Some("beam.BeamJob")
+assembly / mainClass := Some("org.cscie88c.beam.BeamJob")
 assembly / assemblyJarName := "BeamJob.jar"
 assembly / test := {}
 assembly / assemblyMergeStrategy := {
