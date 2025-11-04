@@ -69,7 +69,6 @@ object BronzeDataIngestion {
         import spark.implicits._
     
         spark.read
-        // .format("csv")
         .option("header", "true")
         .option("inferSchema", "true")
         .csv(filePath)

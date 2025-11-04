@@ -2,6 +2,7 @@ package org.cscie88c
 
 object SilverFunctions {
 
-    // gather a specific week's worth of data
+// ability to handle DFs here was not working at all,
+// using SparkJob.scala -- sorry
 
 }
