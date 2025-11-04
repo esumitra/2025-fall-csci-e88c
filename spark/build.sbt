@@ -9,7 +9,8 @@ concurrentRestrictions in Global += Tags.limit(Tags.Test, 4)
 
 // Set fork options to improve memory usage
 fork := true
-javaOptions ++= Seq("-Xms512M", "-Xmx16G", "-XX:+CMSClassUnloadingEnabled")
+javaOptions ++= Seq("-Xms512M", "-Xmx16G"//, "-XX:+CMSClassUnloadingEnabled"
+)
 
 // Enable cached resolution
 updateOptions := updateOptions.value.withCachedResolution(true)
