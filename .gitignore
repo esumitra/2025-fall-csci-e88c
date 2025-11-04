@@ -35,3 +35,6 @@ project/plugins/project/
 
 # homework files
 scalaHomework.zip
+
+# summary.csv
+data/bronze/summary.csv/*
