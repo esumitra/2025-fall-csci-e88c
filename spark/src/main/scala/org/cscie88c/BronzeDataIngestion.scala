@@ -52,7 +52,6 @@ object BronzeDataIngestion {
         spark.read
         .format("parquet")
         .option("header", "true")
-        // .option("inferSchema", "true") // Not sure if needed
         .parquet(filePath)
         .select(columns.map(col): _*) // Selects only needed columns defined above
         // Can alternatively be used to avoid mapping above
@@ -70,7 +69,6 @@ object BronzeDataIngestion {
         import spark.implicits._
     
         spark.read
-        // .format("csv")
         .option("header", "true")
         .option("inferSchema", "true")
         .csv(filePath)
