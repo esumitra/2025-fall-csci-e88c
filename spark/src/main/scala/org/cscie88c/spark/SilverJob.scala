@@ -17,7 +17,7 @@ object SilverJob {
   def main(args: Array[String]): Unit = {
 
     val spark = SparkSession.builder()
-      .appName("SilverTripCleaning-Conformance")
+      .appName("SilverTripCleaning-MultiRule-SingleParquet")
       .master("local[*]")
       .getOrCreate()
 
