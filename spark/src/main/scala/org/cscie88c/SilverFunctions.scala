@@ -2,6 +2,6 @@ package org.cscie88c
 
 object SilverFunctions {
 
-    // Test
+    // gather a specific week's worth of data
 
 }
