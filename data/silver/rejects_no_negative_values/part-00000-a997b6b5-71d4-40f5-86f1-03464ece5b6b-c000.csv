@@ -1,0 +1,2 @@
+"VendorID","tpep_pickup_datetime","tpep_dropoff_datetime","passenger_count","trip_distance","RatecodeID","store_and_fwd_flag","PULocationID","DOLocationID","payment_type","fare_amount","extra","mta_tax","tip_amount","tolls_amount","improvement_surcharge","total_amount","congestion_surcharge","Airport_fee","cbd_congestion_fee","trip_duration_min","pickup_date","pickup_hour"
+"2","2025-01-04T16:50:14.000Z","2025-01-04T16:59:45.000Z","3","0.78","1","N","246","100","4","-9.3","0.0","-0.5","15.0","0.0","-1.0","1.7","-2.5","0.0","0.0","9.516666666666667","2025-01-04","16"
