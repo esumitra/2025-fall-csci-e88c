@@ -163,9 +163,28 @@ Copyright 2025, Edward Sumitra
 
 Licensed under the MIT License.
 
-==============================
+SilverJob - Trip Data Cleaning & Transformation
+
+Overview:
+---------
+This Spark job (SilverJob.scala) performs cleaning and transformation of NYC Yellow Taxi trip data.
+It applies sequential data quality (DQ) rules, removes invalid and null records, standardizes timestamps
+to EST, joins with Taxi Zone Lookup data, and adds weekly bucketing for aggregation readiness.
+The job logs detailed metrics, writes both cleaned and conformed outputs, and saves sample CSVs and reject files.
+
+Inputs:
+-------
+/opt/spark-data/yellow_tripdata_2025-01.parquet   → Raw trip data  
+/opt/spark-data/taxi_zone_lookup.csv              → Taxi zone lookup data
+
+Outputs:
+--------
+/opt/spark-data/silver/trips/                     → Cleaned Parquet (post-DQ)  
+/opt/spark-data/silver/trips_conformed/           → Conformed Parquet (joined + EST + weekly)  
+/opt/spark-data/silver/rejects_<rule_name>/       → Rejected rows (CSV)  
+/opt/spark-data/silver/clean_sample_10k/          → 10K-row cleaned sample (CSV)  
+/opt/spark-data/silver/conformed_sample_10k/      → 10K-row conformed sample (CSV)
 SilverJob - Trip Data Cleaning
-==============================
 
 Overview:
 ---------
