@@ -1,6 +1,5 @@
 package org.cscie88c.spark
 
-import org.cscie88c.core.Utils
 import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema} // Greg's Files
 import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks, SilverFunctions} // Greg's Files
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
@@ -94,7 +93,38 @@ object SparkJob {
         .withColumn("Trip_Time", unix_timestamp(to_timestamp($"tpep_dropoff_datetime")) - unix_timestamp(to_timestamp($"tpep_pickup_datetime")))
         .withColumn("Trip_Time_Min_Converted", col("Trip_Time").as[Double] / 60) // Converted from sec to min
 
-      combinedDF.show(10, truncate = false)
+      // combinedDF.show(10, truncate = false)
+
+      val week1Data = combinedDF.filter($"Pickup_Week" === "1")
+      val week2Data = combinedDF.filter($"Pickup_Week" === "2")
+      val week3Data = combinedDF.filter($"Pickup_Week" === "3")
+      val week4Data = combinedDF.filter($"Pickup_Week" === "4")
+      val week5Data = combinedDF.filter($"Pickup_Week" === "5")
+      //week2Data.show(10, truncate = false)
+
+      // INCORRECT get trips per borough -- needs to be by week though..
+      val boroughVol = zonesDF
+        .join(
+          combinedDF, 
+          combinedDF("BoroughPU") === zonesDF("Borough"),
+          "left")
+        .groupBy(zonesDF("Borough"))
+        .count()
+        .withColumnRenamed("count", "Volume")
+      // boroughVol.show()
+
+      // avg trip (exact route) time per distance -- need to join Zone info x2
+      val tripTimeperDistance = combinedDF
+        .withColumn("TimeperDistance", col("Trip_Time") / col("distance"))
+        .groupBy("PULocation", "DOLocation")
+        .avg("TimeperDistance")
+        .withColumnRenamed("avg(TimeperDistance)", "AvgTimeperDistance").join(
+          zonesDF,
+          combinedDF("")
+        )
+      // tripTimeperDistance.show(10, truncate = false)
+
+
 
       // Test Section
       spark.sparkContext.setLogLevel("ERROR") // Show reduce log bloat for testing
