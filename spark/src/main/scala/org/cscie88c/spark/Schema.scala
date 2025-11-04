@@ -6,6 +6,9 @@ case class ComboYellowTripTaxiZoneSchema(
     // VendorID: String,
     tpep_pickup_datetime: String, // Required
     tpep_dropoff_datetime: String, // Required
+    Pickup_Hour: Int,
+    Pickup_Week: Int,
+    Trip_Time: Double,
     // passenger_count: Int,
     trip_distance: Double, // Required
     // RatecodeID: String,

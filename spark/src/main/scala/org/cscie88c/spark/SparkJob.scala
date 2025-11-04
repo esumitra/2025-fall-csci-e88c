@@ -2,10 +2,11 @@ package org.cscie88c.spark
 
 import org.cscie88c.core.Utils
 import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema} // Greg's Files
-import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks} // Greg's Files
+import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks, SilverFunctions} // Greg's Files
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.functions.{from_unixtime, hour, to_date, datediff}
 
 object SparkJob {
   // Original scaffolding code
@@ -31,6 +32,8 @@ object SparkJob {
               .appName("BronzeDataIngestion")
               .master("local[*]")
               .getOrCreate()
+      
+      import spark.implicits._
 
       val yellowTripDataFilePath = "../data/bronze/yellow_tripdata_2025-01.parquet"
       val taxiZoneLookupFilePath = "../data/bronze/taxi_zone_lookup.csv"
@@ -85,13 +88,20 @@ object SparkJob {
         col("PU.fare_amount").as("fare_amount")
       )
 
+      val combinedDF = ComboYellowTripTaxiZonesDF
+        .withColumn("Pickup_Hour", hour(col("tpep_pickup_datetime")))
+        .withColumn("Pickup_Week", weekofyear(col("tpep_pickup_datetime")))
+        .withColumn("Trip_Time", unix_timestamp(to_timestamp($"tpep_dropoff_datetime")) - unix_timestamp(to_timestamp($"tpep_pickup_datetime")))
+        .withColumn("Trip_Time_Min_Converted", col("Trip_Time").as[Double] / 60) // Converted from sec to min
+
+      combinedDF.show(10, truncate = false)
+
       // Test Section
       spark.sparkContext.setLogLevel("ERROR") // Show reduce log bloat for testing
 
       spark.read.parquet(yellowTripDataFilePath).printSchema()
 
       println(s"How many records in the parquet file: ${tripsDS.count()}")
-
 
       println(s"Schema for $yellowTripDataFilePath:")
       tripsDS.show(5, truncate = false)  // Sample a few rows to inspect
@@ -100,10 +110,7 @@ object SparkJob {
       zonesDS.show(5, truncate = false)  // Sample a few rows to inspect
 
       println(s"Schema for JOINED table:")
-      ComboYellowTripTaxiZonesDF.show(20, truncate = false)  // Sample a few rows to inspect
-
-      // This generated a folder called output.csv with segmented files
-      // trips.write.mode("overwrite").option("header", "true").csv("output.csv")
+      ComboYellowTripTaxiZonesDF.show(5, truncate = false)  // Sample a few rows to inspect
 
       println("=== Null Check ===")
       DataQualityChecks.nullPercentages(tripsDS.toDF()).show(false)
@@ -125,3 +132,40 @@ object SparkJob {
       spark.stop()
   }
 }
+
+/*
+
+--- TO DO ---
+
+Part B
+
+Create reusable functions for week bucketing and other data transformations.
+
+  - Peak-Hour Trip %: Identify congestion trends across boroughs.
+  - Weekly Trip Volume by Borough: Track mobility demand trends and compare boroughs over time
+  - Avg Trip Time vs Distance: Detecting congestion clusters and route inefficiencies.
+
+  - Total Trips & Total Revenue (Weekly): Monitor revenue growth and trip counts
+  - Avg Revenue per Mile: Compare efficiency across boroughs
+  - Night Trip %: Balance driver scheduling and safety coverage (9PM-3AM)
+
+Part C
+
+Implement weekly aggregations, anomaly detection, and unit tests against small fixtures.
+
+Write validation comparing two runs (e.g., prior week) and produce csv or parquet files.
+
+Part D
+
+sbt setup, scalafmt, diagrams, demo notebook/script.
+
+Owns the final results and ensures everyone’s part integrates.
+
+Owns visualization of KPI dashboard
+
+
+Bonus
+
+Run the spark job on GCP Dataproc or AWS EMR
+
+*/
