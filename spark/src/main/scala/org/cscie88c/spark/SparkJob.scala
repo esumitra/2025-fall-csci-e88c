@@ -93,25 +93,44 @@ object SparkJob {
         .withColumn("Trip_Time", unix_timestamp(to_timestamp($"tpep_dropoff_datetime")) - unix_timestamp(to_timestamp($"tpep_pickup_datetime")))
         .withColumn("Trip_Time_Min_Converted", col("Trip_Time").cast("double") / 60) // Converted from sec to min 
 
+        // Chi's Code from Announcement
+        // new columns for Part B requirements
+        // Peak-Hour Trip %
+        .withColumn("Is_Peak_Hour", when(col("Pickup_Hour").between(7,9) // Morning Peak (7-9) = 1
+          .or(col("Pickup_Hour").between(16,18)), 1).otherwise(0)) // Evening Peak (16-18) = 1 otherwise 0
+        // Weekly Trip Volume by Borough
+        .withColumn("Week_Borough", concat_ws("_", col("Pickup_Week"), col("BoroughPU"))) // get week and borough e.g., "1_Manhattan"  
+        // Avg Trip Time vs Distance
+        .withColumn("Avg_Trip_Speed_Mph", when(col("Trip_Time_Min_Converted") > 0, 
+          (col("distance") / col("Trip_Time_Min_Converted")) * 60).otherwise(0)) // distance / time (in hours) in mph
+        // Total Trips & Total Revenue (Weekly)
+        .withColumn("Week_Borough_Revenue", concat_ws("_", col("Pickup_Week"), col("BoroughPU"))) // get week and borough e.g., "1_Manhattan"
+        // Avg Revenue per Mile
+        .withColumn("Revenue_per_Mile", when(col("distance") > 0,
+          col("fare_amount") / col("distance")).otherwise(0)) // fare amount / distance
+        // Night Trip %
+        .withColumn("Is_Night_Trip", when(col("Pickup_Hour").between(21,23) // Nighttime (9PM-11PM) = 1
+          .or(col("Pickup_Hour").between(0,3)), 1).otherwise(0)) // Early Morning (12AM-3AM) = 1 otherwise 0
+
+
       // Review Section
       spark.sparkContext.setLogLevel("ERROR") // Show reduce log bloat for testing
-
-
+      
 
       println("--- CombinedDF Review ---")
       combinedDF.show(5, truncate = false)
       println("--- End CombinedDF Review ---")
 
       /*
-      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+
-      [info] |tpep_pickup_datetime|tpep_dropoff_datetime|distance|PULocation|LocationIDPU|BoroughPU|ZonePU                 |Service_zonePU|DOLocation|LocationIDDO|BoroughDO|ZoneDO                  |Service_zoneDO|fare_amount|Pickup_Hour|Pickup_Week|Trip_Time|Trip_Time_Min_Converted|
-      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+
-      [info] |2024-12-31 21:33:43 |2024-12-31 21:39:00  |1.12    |179       |179         |Queens   |Old Astoria            |Boro Zone     |7         |7           |Queens   |Astoria                 |Boro Zone     |7.9        |21         |1          |317      |5.283333333333333      |
-      [info] |2025-01-01 00:00:07 |2025-01-01 00:06:31  |0.93    |148       |148         |Manhattan|Lower East Side        |Yellow Zone   |45        |45          |Manhattan|Chinatown               |Yellow Zone   |-7.9       |0          |1          |384      |6.4                    |
-      [info] |2025-01-01 00:00:17 |2025-01-01 00:15:22  |5.6     |132       |132         |Queens   |JFK Airport            |Airports      |10        |10          |Queens   |Baisley Park            |Boro Zone     |22.6       |0          |1          |905      |15.083333333333334     |
-      [info] |2025-01-01 00:01:00 |2025-01-01 00:07:39  |3.63    |238       |238         |Manhattan|Upper West Side North  |Yellow Zone   |244       |244         |Manhattan|Washington Heights South|Boro Zone     |15.6       |0          |1          |399      |6.65                   |
-      [info] |2025-01-01 00:02:42 |2025-01-01 00:14:13  |2.2     |113       |113         |Manhattan|Greenwich Village North|Yellow Zone   |233       |233         |Manhattan|UN/Turtle Bay South     |Yellow Zone   |12.1       |0          |1          |691      |11.516666666666667     |
-      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+
+      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+------------+------------+------------------+--------------------+------------------+-------------+
+      [info] |tpep_pickup_datetime|tpep_dropoff_datetime|distance|PULocation|LocationIDPU|BoroughPU|ZonePU                 |Service_zonePU|DOLocation|LocationIDDO|BoroughDO|ZoneDO                  |Service_zoneDO|fare_amount|Pickup_Hour|Pickup_Week|Trip_Time|Trip_Time_Min_Converted|Is_Peak_Hour|Week_Borough|Avg_Trip_Speed_Mph|Week_Borough_Revenue|Revenue_per_Mile  |Is_Night_Trip|
+      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+------------+------------+------------------+--------------------+------------------+-------------+
+      [info] |2024-12-31 21:33:43 |2024-12-31 21:39:00  |1.12    |179       |179         |Queens   |Old Astoria            |Boro Zone     |7         |7           |Queens   |Astoria                 |Boro Zone     |7.9        |21         |1          |317      |5.283333333333333      |0           |1_Queens    |12.719242902208205|1_Queens            |7.053571428571428 |1            |
+      [info] |2025-01-01 00:00:07 |2025-01-01 00:06:31  |0.93    |148       |148         |Manhattan|Lower East Side        |Yellow Zone   |45        |45          |Manhattan|Chinatown               |Yellow Zone   |-7.9       |0          |1          |384      |6.4                    |0           |1_Manhattan |8.71875           |1_Manhattan         |-8.494623655913978|1            |
+      [info] |2025-01-01 00:00:17 |2025-01-01 00:15:22  |5.6     |132       |132         |Queens   |JFK Airport            |Airports      |10        |10          |Queens   |Baisley Park            |Boro Zone     |22.6       |0          |1          |905      |15.083333333333334     |0           |1_Queens    |22.27624309392265 |1_Queens            |4.0357142857142865|1            |
+      [info] |2025-01-01 00:01:00 |2025-01-01 00:07:39  |3.63    |238       |238         |Manhattan|Upper West Side North  |Yellow Zone   |244       |244         |Manhattan|Washington Heights South|Boro Zone     |15.6       |0          |1          |399      |6.65                   |0           |1_Manhattan |32.751879699248114|1_Manhattan         |4.297520661157025 |1            |
+      [info] |2025-01-01 00:02:42 |2025-01-01 00:14:13  |2.2     |113       |113         |Manhattan|Greenwich Village North|Yellow Zone   |233       |233         |Manhattan|UN/Turtle Bay South     |Yellow Zone   |12.1       |0          |1          |691      |11.516666666666667     |0           |1_Manhattan |11.461649782923299|1_Manhattan         |5.499999999999999 |1            |
+      [info] +--------------------+---------------------+--------+----------+------------+---------+-----------------------+--------------+----------+------------+---------+------------------------+--------------+-----------+-----------+-----------+---------+-----------------------+------------+------------+------------------+--------------------+------------------+-------------+
       */
 
       // ** Definitely a way to loop this, but its small enough to block create **
