@@ -1,7 +1,7 @@
 package org.cscie88c.spark
 
 import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema}
-import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks, SilverFunctions}
+import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks, SilverFunctions, AnalysisFunctions}
 import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -282,6 +282,29 @@ object SparkJob {
         */
 
       // Test Section
+  
+      val (borough1, peakPercentage) = AnalysisFunctions.getPeakHourTripPercentage(combinedDF, "Manhattan")
+      println(s"1. Peak-Hour Trip Percentage for $borough1: $peakPercentage")
+
+        // 2. Weekly Trip Volume by Borough (e.g., input = "Manhattan")
+      //val (borough2, tripVolume) = AnalysisFunctions.getWeeklyTripVolumeByBorough(combinedDF, "Manhattan")
+      //  println(s"2. Total Trip Volume for $borough2 (Dataset Period): $tripVolume")
+
+        // Alternative for weekly trip volume by borough
+      val tripVolumeByWeekDF = AnalysisFunctions.getTripVolumeByWeekForAllBoroughs(combinedDF, 1)
+      tripVolumeByWeekDF.show(false)
+
+        // 3. Total Trips & Total Revenue (Weekly) (e.g., input week = 1, Manhattan)
+      AnalysisFunctions.getTotalTripsAndRevenueByWeek(combinedDF, 1, "Manhattan").show(false)
+
+        // 4. Compare efficiency across boroughs (Avg Revenue per Mile)
+      AnalysisFunctions.compareEfficiencyAcrossBoroughs(combinedDF).show(false)
+        // 5. Night Trip Percentage for a Borough (e.g., input = "Manhattan")
+      val (borough3, nightPercentage) = AnalysisFunctions.getNightTripPercentage(combinedDF , "Manhattan")
+      println(s"5. Night Trip Percentage for $borough3: $nightPercentage")
+
+      println("=== END NEW TEST ===\n")
+
       spark.read.parquet(yellowTripDataFilePath).printSchema()
 
       println(s"How many records in the parquet file: ${tripsDS.count()}")
