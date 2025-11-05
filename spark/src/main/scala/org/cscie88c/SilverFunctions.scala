@@ -13,5 +13,9 @@ object SilverFunctions {
 def getWeekData(df: DataFrame, weekNum: Int): DataFrame =
   df.filter(col("Pickup_Week") === weekNum)
 
+def isValidTripDistance(df: DataFrame): Boolean = ???
 
+def isValidFareAmount(df: DataFrame): Boolean = ???
+
+def isValidTimeOrder(df: DataFrame): Boolean = ???
 }
