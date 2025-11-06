@@ -200,6 +200,41 @@ object SilverJob {
     println(f"✅ Joined trips + zones: ${joinedTripsDF.count()}%,d rows")
 
     // ============================================================
+    // Step 9B: Remove trips with invalid or missing pickup borough lookup
+    // ============================================================
+    println("\n=== APPLYING FINAL DQ RULE: drop_invalid_zone_ids ===")
+
+    val invalidZoneTrips = joinedTripsDF.filter(
+    col("pickup_borough").isNull || trim(col("pickup_borough")) === ""
+    )
+
+    val validZoneTrips = joinedTripsDF.filter(
+    col("pickup_borough").isNotNull && trim(col("pickup_borough")) =!= ""
+    )
+
+    val totalZoneBefore = joinedTripsDF.count()
+    val removedZone = invalidZoneTrips.count()
+    val keptZone = validZoneTrips.count()
+
+    println(f"=== METRICS: drop_invalid_zone_ids ===")
+    println(f"Total before: $totalZoneBefore%,d | Kept: $keptZone%,d | Removed: $removedZone%,d (${removedZone.toDouble/totalZoneBefore*100}%.2f%%)")
+
+    // Write rejects so team can inspect unexpected zone IDs
+    val rejectsZoneOut = s"$SilverRoot/rejects_invalid_zone_ids"
+    invalidZoneTrips
+    .coalesce(1)
+    .write
+    .mode("overwrite")
+    .option("header", "true")
+    .option("quoteAll", "true")
+    .csv(rejectsZoneOut)
+
+    println(s"Rejects written to: $rejectsZoneOut")
+
+    // Replace joinedTripsDF with cleaned version
+    val finalConformedDF = validZoneTrips
+
+    // ============================================================
     // Step 9B: Remove Null Boroughs
     // ============================================================
     println("\n=== APPLYING FINAL DQ RULE: drop_invalid_zone_ids ===")
@@ -223,10 +258,12 @@ object SilverJob {
     // ============================================================
     // Step 10: Write Conformed Parquet
     // ============================================================
-    finalConformedDF.coalesce(1)
-      .write.mode("overwrite")
-      .option("compression", "snappy")
-      .parquet(SilverTripsOut)
+    finalConformedDF
+    .coalesce(1)
+    .write
+    .mode("overwrite")
+    .option("compression", "snappy")
+    .parquet(SilverTripsOut)
 
     println(s"✅ Conformed Silver data written to: $SilverTripsOut")
 
@@ -235,11 +272,18 @@ object SilverJob {
     // ============================================================
     println("\n=== STEP 11: WRITING 10K SAMPLE AFTER CONFORMANCE ===")
     val sampleCsvOutConf = s"$SilverRoot/conformed_sample_10k"
-    val totalConformed = finalConformedDF.count()
-    val sampleCountConf = Math.min(10000, totalConformed.toInt)
+    val totalConformed   = finalConformedDF.count()
+    val sampleCountConf  = Math.min(10000, totalConformed.toInt)
 
-    finalConformedDF.orderBy(rand()).limit(sampleCountConf)
-      .coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(sampleCsvOutConf)
+    finalConformedDF
+    .orderBy(rand())
+    .limit(sampleCountConf)
+    .coalesce(1)
+    .write
+    .mode("overwrite")
+    .option("header", "true")
+    .option("quoteAll", "true")
+    .csv(sampleCsvOutConf)
 
     println(f"✅ 10K-row conformed sample CSV written to: $sampleCsvOutConf ($sampleCountConf%,d rows)")
 
@@ -248,7 +292,7 @@ object SilverJob {
     // ============================================================
     println("\n=== SAMPLE CONFORMED ROWS PREVIEW ===")
     finalConformedDF
-      .select(
+    .select(
         col("tpep_pickup_datetime_est"),
         col("tpep_dropoff_datetime_est"),
         col("pickup_week"),
@@ -256,9 +300,7 @@ object SilverJob {
         col("pickup_zone"),
         col("passenger_count"),
         col("total_amount")
-      )
-      .show(10, truncate = false)
-
-    spark.stop()
-  }
+    )
+    .show(10, truncate = false)
+}
 }
