@@ -38,3 +38,6 @@ scalaHomework.zip
 
 data/gold/
 data/silver/
+data/*.parquet
+data/*/*.parquet
+data/*/*.csv
