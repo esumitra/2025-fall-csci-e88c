@@ -22,5 +22,5 @@ object Utilities {
       .option("quoteAll", "true")
       .csv(fileName)
   }
-
+  val SilverTripsConformed = "/opt/spark-data/silver/trips_conformed"
 }
