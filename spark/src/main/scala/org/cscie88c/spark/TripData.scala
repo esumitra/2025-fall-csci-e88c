@@ -1,7 +1,6 @@
 package org.cscie88c.spark
 
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{SparkSession, DataFrame}
 
 case class TripData (
     VendorID: Int,
@@ -26,27 +25,16 @@ case class TripData (
     cbd_congestion_fee: Double
 )
 object TripData {
-  def loadParquetData(filePath: String) (implicit spark: SparkSession): Dataset[TripData] = {
+  def loadParquetData(filePath: String) (implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
     spark
       .read
       .option("mergeSchema", "true")
       .parquet(filePath)
-      .as[TripData]
+
       
 
   }
 
-  def cleanup(ds: Dataset[TripData]): Dataset[TripData] = {
-    ds.where("passenger_count < 0").union(
-      ds.where("passenger_count > 14")).union(
-      ds.where("PULocationID > 265")).union(
-      ds.where("PULocationID < 1")).union(
-      ds.where("DOLocationID > 265")).union(
-      ds.where("DOLocationID < 1")).union(
-      ds.where("payment_type > 5")).union(
-      ds.where("payment_type < 0")).union(
-      ds.where("total_amount > 300"))
 
-  }
 }

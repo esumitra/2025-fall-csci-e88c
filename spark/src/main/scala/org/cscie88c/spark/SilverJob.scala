@@ -1,9 +1,8 @@
 package org.cscie88c.spark
 
-import org.apache.spark.sql.{SparkSession, DataFrame}
+import org.apache.spark.sql.{SparkSession, DataFrame, Column}
 import org.apache.spark.sql.functions._
-import java.io.File
-import java.nio.file.{Files, Paths, StandardCopyOption}
+
 
 object SilverJob {
 
@@ -12,7 +11,9 @@ object SilverJob {
 
   val SilverRoot        = "/opt/spark-data/silver"
   val SilverTripsOut    = s"$SilverRoot/trips_conformed"
-  val dqThreshold       = 0.20   // 20% reject threshold
+  val dqThreshold       = 0.20   // 20% reject threshold per DQ rule
+
+
 
   def main(args: Array[String]): Unit = {
 
@@ -23,12 +24,29 @@ object SilverJob {
 
     spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
+    val outputFiles:Boolean = false
+    cleanData(TripsParquetPath, TaxiZonesCsvPath, outputFiles)(spark)
+    spark.stop()
 
+  }
+  private def applyBasicDQRules(df: DataFrame, outputExtraFiles: Boolean): DataFrame = {
+    var currentDF = df
+    currentDF = applyDQRule(currentDF, "Non-null", currentDF.columns.map(c => col(c).isNotNull).reduce(_ && _), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "passenger_count_valid", col("passenger_count").between(1, 8), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "total_amount_nonnegative", col("total_amount") >= 0, outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "chronological_order_valid", col("tpep_dropoff_datetime") >= col("tpep_pickup_datetime"), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "duration_reasonable", col("trip_duration_min").between(1.0, 180.0), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "distance_reasonable", col("trip_distance").between(0.1, 100.0), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "payment_type_valid", col("payment_type").between(1, 6), outputExtraFiles)
+    currentDF = applyDQRule(currentDF, "ratecode_valid", col("RatecodeID").between(1, 6), outputExtraFiles)
+    currentDF
+  }
+  def cleanData(tripsParquetPath: String, taxiZonesCsvPath: String,  outputExtraFiles: Boolean)(spark: SparkSession) : Unit = {
     // ============================================================
     // Step 1: Load input
     // ============================================================
-    val tripsDF = spark.read.parquet(TripsParquetPath)
-    println(s"=== DEBUG: Raw input count === ${tripsDF.count()}")
+    val tripsDF = TripData.loadParquetData(tripsParquetPath)(spark)
+     println(s"=== DEBUG: Raw input count === ${tripsDF.count()}")
 
     // ============================================================
     // Step 2: Derived features
@@ -41,123 +59,70 @@ object SilverJob {
       .withColumn("pickup_date", to_date(col("tpep_pickup_datetime")))
       .withColumn("pickup_hour", hour(col("tpep_pickup_datetime")))
 
-    println("=== DEBUG: Sample trip_duration_min values ===")
-    withDerived
+
+      println("=== DEBUG: Sample trip_duration_min values ===")
+
+      withDerived
       .select("tpep_pickup_datetime", "tpep_dropoff_datetime", "trip_duration_min")
       .show(10, truncate = false)
 
-    var currentDF = withDerived
+    val currentDF = withDerived
     val totalRows = currentDF.count()
 
     // ============================================================
-    // Step 3: Remove nulls upfront
-    // ============================================================
-    println("\n=== APPLYING INITIAL RULE: no_null_values ===")
-    val rejectsNulls = currentDF.filter(currentDF.columns.map(c => col(c).isNull).reduce(_ || _))
-    val cleanedNoNulls = currentDF.filter(currentDF.columns.map(c => col(c).isNotNull).reduce(_ && _))
-
-    val totalBeforeNulls = currentDF.count()
-    val rejectedNulls = rejectsNulls.count()
-    val keptNoNulls = cleanedNoNulls.count()
-    val nullRejectRate = rejectedNulls.toDouble / totalBeforeNulls
-
-    println(f"=== METRICS: no_null_values ===")
-    println(f"Total before: $totalBeforeNulls%,d | Kept: $keptNoNulls%,d | Rejected: $rejectedNulls%,d (${nullRejectRate * 100}%.2f%%)")
-
-    if (nullRejectRate > dqThreshold)
-      throw new RuntimeException(f"❌ FAIL-FAST: Nulls exceed ${dqThreshold * 100}%.1f%%")
-
-    val rejectsCsvOutInit = s"$SilverRoot/rejects_no_null_values"
-    rejectsNulls.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsCsvOutInit)
-    println(s"Rejects written to: $rejectsCsvOutInit")
-
-    currentDF = cleanedNoNulls
-
-    // ============================================================
-    // Step 4: Helper to apply DQ rules
-    // ============================================================
-    def applyDQRule(df: DataFrame, ruleName: String, condition: org.apache.spark.sql.Column): DataFrame = {
-      println(s"\n=== APPLYING RULE: $ruleName ===")
-
-      val rejects = df.filter(!condition)
-      val cleaned = df.filter(condition)
-
-      val totalBefore = df.count()
-      val rejectedCount = rejects.count()
-      val keptCount = cleaned.count()
-      val rejectRate = rejectedCount.toDouble / totalBefore
-
-      println(f"=== METRICS: $ruleName ===")
-      println(f"Total before: $totalBefore%,d | Kept: $keptCount%,d | Rejected: $rejectedCount%,d (${rejectRate * 100}%.2f%%)")
-
-      if (rejectRate > dqThreshold)
-        throw new RuntimeException(f"❌ FAIL-FAST: Rule [$ruleName] reject rate ${rejectRate * 100}%.2f%% exceeds limit.")
-
-      val rejectsCsvOut = s"$SilverRoot/rejects_${ruleName}"
-      rejects.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsCsvOut)
-      println(s"Rejects written to: $rejectsCsvOut")
-
-      cleaned
-    }
-
-    // ============================================================
-    // Step 5: DQ Pipeline
+    // Step 3: Data Quality Pipeline
     // ============================================================
     println("\n=== STARTING DQ CLEANING PIPELINE ===")
-
-    currentDF = applyDQRule(currentDF, "passenger_count_valid", col("passenger_count").between(1, 8))
-    currentDF = applyDQRule(currentDF, "total_amount_nonnegative", col("total_amount") >= 0)
-    currentDF = applyDQRule(currentDF, "chronological_order_valid", col("tpep_dropoff_datetime") >= col("tpep_pickup_datetime"))
-    currentDF = applyDQRule(currentDF, "duration_reasonable", col("trip_duration_min").between(1.0, 180.0))
-    currentDF = applyDQRule(currentDF, "distance_reasonable", col("trip_distance").between(0.1, 100.0))
-    currentDF = applyDQRule(currentDF, "payment_type_valid", col("payment_type").between(1, 6))
-    currentDF = applyDQRule(currentDF, "ratecode_valid", col("RatecodeID").between(1, 6))
+    val withBasicDQ = applyBasicDQRules(currentDF)
 
     // ============================================================
-    // Step 6: No negative numeric values
+    // Step 4: Remove negative numeric values
     // ============================================================
     println("\n=== APPLYING RULE: no_negative_values ===")
-    val numericCols = currentDF.schema.fields.filter(f =>
+    val numericCols = withBasicDQ.schema.fields.filter(f =>
       f.dataType.simpleString.matches("int|double|float|long|decimal.*")
     ).map(_.name)
+    var finalCleanCount = withBasicDQ.count()
 
     if (numericCols.nonEmpty) {
       val negativeCondition = numericCols.map(c => col(c) >= 0).reduce(_ && _)
-      currentDF = applyDQRule(currentDF, "no_negative_values", negativeCondition)
+      val numericallyCleanDF = applyDQRule(withBasicDQ, "no_negative_values", negativeCondition, outputExtraFiles)
+      finalCleanCount = numericallyCleanDF.count()
     } else {
-      println("No numeric columns found — skipping no_negative_values")
+      println("No numeric columns found — skipping no_negative_values check.")
     }
 
-    val finalCleanCount = currentDF.count()
+
     println("\n=== FINAL CLEANED DATASET METRICS ===")
-    println(f"Initial rows: $totalRows%,d | Final kept: $finalCleanCount%,d | Removed: ${totalRows - finalCleanCount}%,d")
+   println(f"Initial rows: $totalRows%,d | Final kept: $finalCleanCount%,d | Removed: ${totalRows - finalCleanCount}%,d")
 
     // ============================================================
-    // Step 7: 10K Clean Sample
+    // Step 5: Write 10K-row sample after cleaning
     // ============================================================
     println("\n=== STEP 7: WRITING 10K SAMPLE AFTER CLEANING ===")
-    val sampleCsvOutClean = s"$SilverRoot/clean_sample_10k"
-    val sampleCountClean = Math.min(10000, finalCleanCount.toInt)
+    if (outputExtraFiles) {
+      val sampleCsvOutClean = s"$SilverRoot/clean_sample_10k"
+      val sampleCountClean = Math.min(10000, finalCleanCount.toInt)
+      Utilities.csvOutput(currentDF, sampleCsvOutClean, sampleCountClean, rand())
+       println(f"✅ 10K-row clean sample CSV written to: $sampleCsvOutClean ($sampleCountClean%,d rows)")
+    }
 
-    currentDF.orderBy(rand()).limit(sampleCountClean)
-      .coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(sampleCsvOutClean)
 
-    println(f"✅ Clean sample written to: $sampleCsvOutClean")
+
 
     // ============================================================
-    // Step 8: Clean Taxi Zones
+    // Step 6: Clean Taxi Zone Lookup
     // ============================================================
-    println("\n=== STARTING ZONE LOOKUP CLEANING ===")
-
-    val rawZonesDF = TaxiZones.zonesFromFile(TaxiZonesCsvPath)(spark)
+     println("\n=== STARTING ZONE LOOKUP CLEANING ===")
+    val rawZonesDF = TaxiZones.zonesFromFile(taxiZonesCsvPath)(spark)
 
     val cleanedZonesDF = rawZonesDF.filter(
       rawZonesDF.columns.map { c =>
         lower(trim(col(c))) =!= "n/a" &&
-        lower(trim(col(c))) =!= "unknown" &&
-        lower(trim(col(c))) =!= "outside of nyc" &&
-        col(c).isNotNull &&
-        trim(col(c)) =!= ""
+          lower(trim(col(c))) =!= "unknown" &&
+          lower(trim(col(c))) =!= "outside of nyc" &&
+          col(c).isNotNull &&
+          trim(col(c)) =!= ""
       }.reduce(_ && _)
     )
 
@@ -165,12 +130,16 @@ object SilverJob {
     val keptZones = cleanedZonesDF.count()
     println(f"✅ Cleaned zones: $keptZones%,d / $totalZones%,d")
 
-    val cleanZonesOut = s"$SilverRoot/taxi_zone_lookup_clean"
-    cleanedZonesDF.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(cleanZonesOut)
-    println(s"✅ Cleaned Taxi Zones written to: $cleanZonesOut")
+    if(outputExtraFiles){
+      val cleanZonesOut = s"$SilverRoot/taxi_zone_lookup_clean"
+
+      Utilities.csvOutput(cleanedZonesDF, cleanZonesOut, keptZones.toInt, col("LocationID"))
+      println(s"✅ Cleaned Taxi Zones written to: $cleanZonesOut")
+    }
+
 
     // ============================================================
-    // Step 9: Conformance + EST + Week Buckets
+    // Step 7: Conformance & Joins (Standardize to EST + Weekly Bucketing)
     // ============================================================
     println("\n=== STEP 9: CONFORMANCE & JOINS (EST + WEEK BUCKETING) ===")
 
@@ -191,7 +160,7 @@ object SilverJob {
       )
 
     val joinedTripsDF = conformedTripsDF.join(cleanedZonesDF,
-      conformedTripsDF("PULocationID") === cleanedZonesDF("LocationID"), "left")
+        conformedTripsDF("PULocationID") === cleanedZonesDF("LocationID"), "left")
       .withColumnRenamed("Borough", "pickup_borough")
       .withColumnRenamed("Zone", "pickup_zone")
       .withColumnRenamed("service_zone", "pickup_service_zone")
@@ -200,107 +169,84 @@ object SilverJob {
     println(f"✅ Joined trips + zones: ${joinedTripsDF.count()}%,d rows")
 
     // ============================================================
-    // Step 9B: Remove trips with invalid or missing pickup borough lookup
+    // Step 8: Remove Null Boroughs
     // ============================================================
-    println("\n=== APPLYING FINAL DQ RULE: drop_invalid_zone_ids ===")
+    println("\n=== APPLYING POST JOIN DQ RULE: drop_invalid_zone_ids ===")
+    //pickup borough must be non null and not an empty string
+    val condition: Column = not(col("pickup_borough").isNull || trim(col("pickup_borough")) === "")
+    val finalConformedDF = applyDQRule(joinedTripsDF, "Invalid Zones", condition ,outputExtraFiles)
 
-    val invalidZoneTrips = joinedTripsDF.filter(
-    col("pickup_borough").isNull || trim(col("pickup_borough")) === ""
-    )
 
-    val validZoneTrips = joinedTripsDF.filter(
-    col("pickup_borough").isNotNull && trim(col("pickup_borough")) =!= ""
-    )
 
-    val totalZoneBefore = joinedTripsDF.count()
-    val removedZone = invalidZoneTrips.count()
-    val keptZone = validZoneTrips.count()
+      // ============================================================
+      // Step 9: Write conformed Silver Parquet
+      // ============================================================
+      Utilities.parquetOutput(finalConformedDF, SilverTripsOut)
+      println(s"✅ Conformed Silver data written to: $SilverTripsOut")
 
-    println(f"=== METRICS: drop_invalid_zone_ids ===")
-    println(f"Total before: $totalZoneBefore%,d | Kept: $keptZone%,d | Removed: $removedZone%,d (${removedZone.toDouble/totalZoneBefore*100}%.2f%%)")
 
-    // Write rejects so team can inspect unexpected zone IDs
-    val rejectsZoneOut = s"$SilverRoot/rejects_invalid_zone_ids"
-    invalidZoneTrips
-    .coalesce(1)
-    .write
-    .mode("overwrite")
-    .option("header", "true")
-    .option("quoteAll", "true")
-    .csv(rejectsZoneOut)
 
-    println(s"Rejects written to: $rejectsZoneOut")
+    if (outputExtraFiles) {
+      // ============================================================
+      // Step 10: Write 10K-row sample after conformance
+      // ============================================================
 
-    // Replace joinedTripsDF with cleaned version
-    val finalConformedDF = validZoneTrips
+      println("\n=== STEP 10: WRITING 10K SAMPLE AFTER CONFORMANCE ===")
+      val sampleCsvOutConf = s"$SilverRoot/conformed_sample_10k"
+      val sampleCountConf = Math.min(10000, joinedTripsDF.count().toInt)
 
+      Utilities.csvOutput(joinedTripsDF, sampleCsvOutConf, sampleCountConf, rand())
+       println(f"✅ 10K-row conformed sample CSV written to: $sampleCsvOutConf ($sampleCountConf%,d rows)")
+    }
     // ============================================================
-    // Step 9B: Remove Null Boroughs
+    // Step 11: Preview
     // ============================================================
-    println("\n=== APPLYING FINAL DQ RULE: drop_invalid_zone_ids ===")
 
-    val invalidZoneTrips = joinedTripsDF.filter(col("pickup_borough").isNull || trim(col("pickup_borough")) === "")
-    val validZoneTrips   = joinedTripsDF.filter(col("pickup_borough").isNotNull && trim(col("pickup_borough")) =!= "")
+      println("\n=== SAMPLE CONFORMED ROWS PREVIEW ===")
 
-    val totalZoneBefore = joinedTripsDF.count()
-    val removedZone = invalidZoneTrips.count()
-    val keptZone = validZoneTrips.count()
+      joinedTripsDF
+        .select(
+          col("tpep_pickup_datetime_est"),
+          col("tpep_dropoff_datetime_est"),
+          col("pickup_week"),
+          col("pickup_week_start"),
+          col("pickup_zone"),
+          col("passenger_count"),
+          col("total_amount")
+        )
+        .show(10, truncate = false)
 
-    println(f"=== METRICS: drop_invalid_zone_ids ===")
-    println(f"Total before: $totalZoneBefore%,d | Kept: $keptZone%,d | Removed: $removedZone%,d (${removedZone.toDouble/totalZoneBefore*100}%.2f%%)")
 
-    val rejectsZoneOut = s"$SilverRoot/rejects_invalid_zone_ids"
-    invalidZoneTrips.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsZoneOut)
-    println(s"Rejects written to: $rejectsZoneOut")
+  }
 
-    val finalConformedDF = validZoneTrips
+  def applyDQRule(df: DataFrame, ruleName: String, condition: org.apache.spark.sql.Column, outputFiles: Boolean): DataFrame = {
+    println(s"\n=== APPLYING RULE: $ruleName ===")
 
-    // ============================================================
-    // Step 10: Write Conformed Parquet
-    // ============================================================
-    finalConformedDF
-    .coalesce(1)
-    .write
-    .mode("overwrite")
-    .option("compression", "snappy")
-    .parquet(SilverTripsOut)
+    val rejects = df.filter(!condition)
+    val cleaned = df.filter(condition)
 
-    println(s"✅ Conformed Silver data written to: $SilverTripsOut")
+    val totalBefore = df.count()
+    val rejectedCount = rejects.count()
+    val keptCount = cleaned.count()
+    val rejectRate = rejectedCount.toDouble / totalBefore
 
-    // ============================================================
-    // Step 11: 10K Conformed Sample
-    // ============================================================
-    println("\n=== STEP 11: WRITING 10K SAMPLE AFTER CONFORMANCE ===")
-    val sampleCsvOutConf = s"$SilverRoot/conformed_sample_10k"
-    val totalConformed   = finalConformedDF.count()
-    val sampleCountConf  = Math.min(10000, totalConformed.toInt)
+   println(f"=== METRICS: $ruleName ===")
+    println(f"Total before: $totalBefore%,d | Kept: $keptCount%,d | Rejected: $rejectedCount%,d (${rejectRate * 100}%.2f%%)")
 
-    finalConformedDF
-    .orderBy(rand())
-    .limit(sampleCountConf)
-    .coalesce(1)
-    .write
-    .mode("overwrite")
-    .option("header", "true")
-    .option("quoteAll", "true")
-    .csv(sampleCsvOutConf)
+    if (rejectRate > dqThreshold)
+      throw new RuntimeException(f"❌ FAIL-FAST: Rule [$ruleName] reject rate ${rejectRate * 100}%.2f%% exceeds ${dqThreshold * 100}%.1f%% threshold.")
 
-    println(f"✅ 10K-row conformed sample CSV written to: $sampleCsvOutConf ($sampleCountConf%,d rows)")
+    if (outputFiles) {
+      val rejectsCsvOut = s"$SilverRoot/rejects_${ruleName}"
+      csvOutput(rejects,rejectsCsvOut,rejectedCount.toInt,col("tpep_pickup_datetime_est"))
+      println(s"Rejects written to: $rejectsCsvOut")
+    }
 
-    // ============================================================
-    // Step 12: Preview
-    // ============================================================
-    println("\n=== SAMPLE CONFORMED ROWS PREVIEW ===")
-    finalConformedDF
-    .select(
-        col("tpep_pickup_datetime_est"),
-        col("tpep_dropoff_datetime_est"),
-        col("pickup_week"),
-        col("pickup_week_start"),
-        col("pickup_zone"),
-        col("passenger_count"),
-        col("total_amount")
-    )
-    .show(10, truncate = false)
-}
+
+
+    cleaned
+  }
+
+
+
 }
