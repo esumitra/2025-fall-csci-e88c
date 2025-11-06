@@ -21,6 +21,29 @@ object DataQualityChecks {
         nullStats.toDF("column", "null_percent")
     }
 
+    // Unique ID Check
+    def uniqueIdCheck(df: DataFrame, idColumn: String)(implicit spark: SparkSession): DataFrame = {
+        import spark.implicits._
+
+        val totalCount = df.count()
+        val distinctCount = df.select(idColumn).distinct().count()
+
+        val duplicates = totalCount - distinctCount
+
+        val result = Seq((
+            idColumn,
+            totalCount,
+            distinctCount,
+            duplicates
+        )).toDF("column", "total_records", "unique_records", "duplicate_count")
+
+        result
+    }
+
+    // Week Completeness Check
+    def completenessByWeek(df: DataFrame)(implicit spark: SparkSession): DataFrame = ???
+
+
     // Range checks
     def invalidTripDistance(df: DataFrame): DataFrame = {
         df.filter(col("trip_distance") <= 0)

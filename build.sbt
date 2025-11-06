@@ -95,7 +95,8 @@ lazy val spark = project
   .settings(
     commonSettings,
     // Spark module settings)
-    libraryDependencies ++= sparkDependencies // Added to read parquet
+    libraryDependencies ++= sparkDependencies, // Added to read parquet
+    // Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat // Was getting errors running test files, google suggested this (didn't fix)
   )
   .dependsOn(core)
   .enablePlugins(JavaAppPackaging)

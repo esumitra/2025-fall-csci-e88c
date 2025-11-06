@@ -1,6 +1,5 @@
 name := "spark"
 
-// val isLocal = sys.env.get("LOCAL_MODE").contains("1")
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "3.5.1", // % Provided,

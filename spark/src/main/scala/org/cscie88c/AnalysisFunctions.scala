@@ -1,8 +1,7 @@
 package org.cscie88c
 
-import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
+import org.apache.spark.sql.{DataFrame}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
 
 
 object AnalysisFunctions {

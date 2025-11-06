@@ -1,5 +1,4 @@
 package org.cscie88c.spark
-import org.apache.spark.sql.types._
 
 case class ComboYellowTripTaxiZoneSchema(
     // These are all headers in the trip parquet file
@@ -19,7 +18,6 @@ case class ComboYellowTripTaxiZoneSchema(
     BoroughPU: String,
     ZonePU: String,
     Service_zonePU: String,
-    //
     // These are all headers in the trip parquet file
     DOLocationID: Int, // Required
     // Dropoff info from TaxiZoneSchema table
