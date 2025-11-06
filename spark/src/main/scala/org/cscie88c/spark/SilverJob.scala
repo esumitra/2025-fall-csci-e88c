@@ -12,7 +12,7 @@ object SilverJob {
 
   val SilverRoot        = "/opt/spark-data/silver"
   val SilverTripsOut    = s"$SilverRoot/trips_conformed"
-  val dqThreshold       = 0.20   // 20% reject threshold per DQ rule
+  val dqThreshold       = 0.20   // 20% reject threshold
 
   def main(args: Array[String]): Unit = {
 
@@ -25,7 +25,7 @@ object SilverJob {
     import spark.implicits._
 
     // ============================================================
-    // Step 1: Load source data
+    // Step 1: Load input
     // ============================================================
     val tripsDF = spark.read.parquet(TripsParquetPath)
     println(s"=== DEBUG: Raw input count === ${tripsDF.count()}")
@@ -65,22 +65,16 @@ object SilverJob {
     println(f"Total before: $totalBeforeNulls%,d | Kept: $keptNoNulls%,d | Rejected: $rejectedNulls%,d (${nullRejectRate * 100}%.2f%%)")
 
     if (nullRejectRate > dqThreshold)
-      throw new RuntimeException(f"❌ FAIL-FAST: ${nullRejectRate * 100}%.2f%% nulls exceed ${dqThreshold * 100}%.1f%% threshold.")
+      throw new RuntimeException(f"❌ FAIL-FAST: Nulls exceed ${dqThreshold * 100}%.1f%%")
 
     val rejectsCsvOutInit = s"$SilverRoot/rejects_no_null_values"
-    rejectsNulls
-      .coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .option("quoteAll", "true")
-      .csv(rejectsCsvOutInit)
-
+    rejectsNulls.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsCsvOutInit)
     println(s"Rejects written to: $rejectsCsvOutInit")
+
     currentDF = cleanedNoNulls
 
     // ============================================================
-    // Step 4: Helper to apply DQ rules with integrated fail-fast logic
+    // Step 4: Helper to apply DQ rules
     // ============================================================
     def applyDQRule(df: DataFrame, ruleName: String, condition: org.apache.spark.sql.Column): DataFrame = {
       println(s"\n=== APPLYING RULE: $ruleName ===")
@@ -97,23 +91,17 @@ object SilverJob {
       println(f"Total before: $totalBefore%,d | Kept: $keptCount%,d | Rejected: $rejectedCount%,d (${rejectRate * 100}%.2f%%)")
 
       if (rejectRate > dqThreshold)
-        throw new RuntimeException(f"❌ FAIL-FAST: Rule [$ruleName] reject rate ${rejectRate * 100}%.2f%% exceeds ${dqThreshold * 100}%.1f%% threshold.")
+        throw new RuntimeException(f"❌ FAIL-FAST: Rule [$ruleName] reject rate ${rejectRate * 100}%.2f%% exceeds limit.")
 
       val rejectsCsvOut = s"$SilverRoot/rejects_${ruleName}"
-      rejects
-        .coalesce(1)
-        .write
-        .mode("overwrite")
-        .option("header", "true")
-        .option("quoteAll", "true")
-        .csv(rejectsCsvOut)
-
+      rejects.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsCsvOut)
       println(s"Rejects written to: $rejectsCsvOut")
+
       cleaned
     }
 
     // ============================================================
-    // Step 5: Sequential DQ cleaning pipeline
+    // Step 5: DQ Pipeline
     // ============================================================
     println("\n=== STARTING DQ CLEANING PIPELINE ===")
 
@@ -126,7 +114,7 @@ object SilverJob {
     currentDF = applyDQRule(currentDF, "ratecode_valid", col("RatecodeID").between(1, 6))
 
     // ============================================================
-    // Step 6: Remove negative numeric values
+    // Step 6: No negative numeric values
     // ============================================================
     println("\n=== APPLYING RULE: no_negative_values ===")
     val numericCols = currentDF.schema.fields.filter(f =>
@@ -137,36 +125,30 @@ object SilverJob {
       val negativeCondition = numericCols.map(c => col(c) >= 0).reduce(_ && _)
       currentDF = applyDQRule(currentDF, "no_negative_values", negativeCondition)
     } else {
-      println("No numeric columns found — skipping no_negative_values check.")
+      println("No numeric columns found — skipping no_negative_values")
     }
 
     val finalCleanCount = currentDF.count()
     println("\n=== FINAL CLEANED DATASET METRICS ===")
-    println(f"Initial total rows: $totalRows%,d | Final kept rows: $finalCleanCount%,d | Total removed: ${totalRows - finalCleanCount}%,d")
+    println(f"Initial rows: $totalRows%,d | Final kept: $finalCleanCount%,d | Removed: ${totalRows - finalCleanCount}%,d")
 
     // ============================================================
-    // Step 7: Write 10K-row sample after cleaning
+    // Step 7: 10K Clean Sample
     // ============================================================
     println("\n=== STEP 7: WRITING 10K SAMPLE AFTER CLEANING ===")
     val sampleCsvOutClean = s"$SilverRoot/clean_sample_10k"
     val sampleCountClean = Math.min(10000, finalCleanCount.toInt)
 
-    currentDF
-      .orderBy(rand())
-      .limit(sampleCountClean)
-      .coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .option("quoteAll", "true")
-      .csv(sampleCsvOutClean)
+    currentDF.orderBy(rand()).limit(sampleCountClean)
+      .coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(sampleCsvOutClean)
 
-    println(f"✅ 10K-row clean sample CSV written to: $sampleCsvOutClean ($sampleCountClean%,d rows)")
+    println(f"✅ Clean sample written to: $sampleCsvOutClean")
 
     // ============================================================
-    // Step 8: Clean Taxi Zone Lookup
+    // Step 8: Clean Taxi Zones
     // ============================================================
     println("\n=== STARTING ZONE LOOKUP CLEANING ===")
+
     val rawZonesDF = TaxiZones.zonesFromFile(TaxiZonesCsvPath)(spark)
 
     val cleanedZonesDF = rawZonesDF.filter(
@@ -184,17 +166,11 @@ object SilverJob {
     println(f"✅ Cleaned zones: $keptZones%,d / $totalZones%,d")
 
     val cleanZonesOut = s"$SilverRoot/taxi_zone_lookup_clean"
-    cleanedZonesDF
-      .coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .option("quoteAll", "true")
-      .csv(cleanZonesOut)
+    cleanedZonesDF.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(cleanZonesOut)
     println(s"✅ Cleaned Taxi Zones written to: $cleanZonesOut")
 
     // ============================================================
-    // Step 9: Conformance & Joins (Standardize to EST + Weekly Bucketing)
+    // Step 9: Conformance + EST + Week Buckets
     // ============================================================
     println("\n=== STEP 9: CONFORMANCE & JOINS (EST + WEEK BUCKETING) ===")
 
@@ -224,34 +200,46 @@ object SilverJob {
     println(f"✅ Joined trips + zones: ${joinedTripsDF.count()}%,d rows")
 
     // ============================================================
-    // Step 10: Write conformed Silver Parquet
+    // Step 9B: Remove Null Boroughs
     // ============================================================
-    joinedTripsDF
-      .coalesce(1)
-      .write
-      .mode("overwrite")
+    println("\n=== APPLYING FINAL DQ RULE: drop_invalid_zone_ids ===")
+
+    val invalidZoneTrips = joinedTripsDF.filter(col("pickup_borough").isNull || trim(col("pickup_borough")) === "")
+    val validZoneTrips   = joinedTripsDF.filter(col("pickup_borough").isNotNull && trim(col("pickup_borough")) =!= "")
+
+    val totalZoneBefore = joinedTripsDF.count()
+    val removedZone = invalidZoneTrips.count()
+    val keptZone = validZoneTrips.count()
+
+    println(f"=== METRICS: drop_invalid_zone_ids ===")
+    println(f"Total before: $totalZoneBefore%,d | Kept: $keptZone%,d | Removed: $removedZone%,d (${removedZone.toDouble/totalZoneBefore*100}%.2f%%)")
+
+    val rejectsZoneOut = s"$SilverRoot/rejects_invalid_zone_ids"
+    invalidZoneTrips.coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(rejectsZoneOut)
+    println(s"Rejects written to: $rejectsZoneOut")
+
+    val finalConformedDF = validZoneTrips
+
+    // ============================================================
+    // Step 10: Write Conformed Parquet
+    // ============================================================
+    finalConformedDF.coalesce(1)
+      .write.mode("overwrite")
       .option("compression", "snappy")
       .parquet(SilverTripsOut)
 
     println(s"✅ Conformed Silver data written to: $SilverTripsOut")
 
     // ============================================================
-    // Step 11: Write 10K-row sample after conformance
+    // Step 11: 10K Conformed Sample
     // ============================================================
     println("\n=== STEP 11: WRITING 10K SAMPLE AFTER CONFORMANCE ===")
     val sampleCsvOutConf = s"$SilverRoot/conformed_sample_10k"
-    val totalConformed = joinedTripsDF.count()
+    val totalConformed = finalConformedDF.count()
     val sampleCountConf = Math.min(10000, totalConformed.toInt)
 
-    joinedTripsDF
-      .orderBy(rand())
-      .limit(sampleCountConf)
-      .coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .option("quoteAll", "true")
-      .csv(sampleCsvOutConf)
+    finalConformedDF.orderBy(rand()).limit(sampleCountConf)
+      .coalesce(1).write.mode("overwrite").option("header", "true").option("quoteAll", "true").csv(sampleCsvOutConf)
 
     println(f"✅ 10K-row conformed sample CSV written to: $sampleCsvOutConf ($sampleCountConf%,d rows)")
 
@@ -259,7 +247,7 @@ object SilverJob {
     // Step 12: Preview
     // ============================================================
     println("\n=== SAMPLE CONFORMED ROWS PREVIEW ===")
-    joinedTripsDF
+    finalConformedDF
       .select(
         col("tpep_pickup_datetime_est"),
         col("tpep_dropoff_datetime_est"),
