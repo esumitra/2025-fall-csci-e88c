@@ -68,11 +68,11 @@ object AnalysisFunctions {
 
     def compareEfficiencyAcrossBoroughs(df: DataFrame): DataFrame = {
         println("\n--- Average Revenue Per Mile by Borough (Efficiency Comparison) ---")
-        df.filter(col("distance") > 0) // Filter out zero-distance trips which distort the metric
+        df.filter(col("trip_distance") > 0) // Filter out zero-distance trips which distort the metric
             .groupBy(col("BoroughPU"))
             .agg(
                 sum(col("fare_amount")).as("Total_Revenue"),
-                sum(col("distance")).as("Total_Distance")
+                sum(col("trip_distance")).as("Total_Distance")
             )
             .withColumn(
                 "Avg_Revenue_Per_Mile",

@@ -38,3 +38,4 @@ scalaHomework.zip
 
 # summary.csv
 data/bronze/summary.csv/*
+data/silver/summary_cleaned.csv/*
