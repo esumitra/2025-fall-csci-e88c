@@ -2,10 +2,9 @@ package org.cscie88c.spark
 
 import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema}
 import org.cscie88c.{RunSummary, BronzeDataIngestion, DataQualityChecks, SilverFunctions, AnalysisFunctions}
-import org.apache.spark.sql.{DataFrame, SparkSession, Dataset}
+import org.apache.spark.sql.{SparkSession, Dataset}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.functions.{from_unixtime, hour, to_date, datediff}
+import org.apache.spark.sql.functions.{hour}
 
 object SparkJob {
   // Original scaffolding code
@@ -56,17 +55,33 @@ object SparkJob {
       println(s"Schema for $taxiZoneLookupFilePath:")
       zonesDS.show(5, truncate = false)  // Sample a few rows to inspect
 
+      // Create DataFrames
+      // val tripsDF = tripsDS.toDF().alias("trips")
+
+      // Add unique trip_id column to DF (for reference later)
+      val tripsDF = tripsDS
+        .toDF()                  // Convert to DataFrame if not already
+        .withColumn("trip_id", monotonically_increasing_id()) // This will give us a unique ID to key off of, sequentially increasing
+        .alias("trips")
+      val zonesDF = zonesDS.toDF().alias("zones")  
+
       println("=== Null Check ===")
-      DataQualityChecks.nullPercentages(tripsDS.toDF()).show(false)
+      DataQualityChecks.nullPercentages(tripsDF).show(false)
 
       println("=== Range Check ===")
-      DataQualityChecks.rangeChecks(tripsDS.toDF()).show(false)
+      DataQualityChecks.rangeChecks(tripsDF).show(false)
+
+      println("=== Unique ID Check ===")
+      DataQualityChecks.uniqueIdCheck(tripsDF, "trip_id").show(false)
+
+      // println("=== Week Completeness Check ===")
+      // DataQualityChecks.completenessByWeek(tripsDF).show(false)
 
       // println("=== Referential Integrity Check ===")
       // DataQualityChecks.referentialCheck(tripsDS, zonesDS).show(false)
 
       println("--- TEST RUN SUMMARY START HERE ---")
-      val summaryDF = RunSummary.generateSummary(tripsDS.toDF())
+      val summaryDF = RunSummary.generateSummary(tripsDF)
       summaryDF.show(false)
       summaryDF.write.mode("overwrite")
         .option("header", "true")
@@ -75,9 +90,7 @@ object SparkJob {
 
 
       
-      // joined/linked table will need DataFrames, then create based off PU or DO
-      val tripsDF = tripsDS.toDF().alias("trips")
-      val zonesDF = zonesDS.toDF().alias("zones")      
+      // joined/linked table will need DataFrames, then create based off PU or DO    
       val joinedTripsZonesDFPU = tripsDF.join(
         zonesDF,
         tripsDF("PULocationID") === zonesDF("LocationID"),
@@ -109,7 +122,6 @@ object SparkJob {
         col("PU.tpep_pickup_datetime").as("tpep_pickup_datetime"),
         col("PU.tpep_dropoff_datetime").as("tpep_dropoff_datetime"),
         col("PU.trip_distance").as("trip_distance"),
-        // col("PU.trip_distance").as("distance"),
         col("PU.PULocationID").as("PULocation"),
         col("PU.LocationID").as("LocationIDPU"),
         col("PU.Borough").as("BoroughPU"),
@@ -167,31 +179,29 @@ object SparkJob {
       println("--- End CombinedDF Review ---")
 
       // Second Summary to confirm records changed and data is cleaned
-      println("--- TEST RUN 2nd SUMMARY START HERE ---")
+      println("--- TEST RUN 2ND SUMMARY START HERE ---")
       val summaryCleanedDF = RunSummary.generateSummary(cleanedDF)
       summaryCleanedDF.show(false)
       summaryCleanedDF.write.mode("overwrite")
         .option("header", "true")
         .csv("../data/silver/summary_cleaned.csv")
-      println("--- TEST RUN 2nd SUMMARY END HERE ---")
-
-      println("--- CLEANED RUN SUMMARY START ---")
+      println("--- TEST RUN 2ND SUMMARY END HERE ---")
 
       // What do we need to do with this atm?
-      // val week1 = SilverFunctions.getWeekData(combinedDF, 1)
-      // val week2 = SilverFunctions.getWeekData(combinedDF, 2)
-      // val week3 = SilverFunctions.getWeekData(combinedDF, 3)
-      // val week4 = SilverFunctions.getWeekData(combinedDF, 4)
-      // val week5 = SilverFunctions.getWeekData(combinedDF, 5)
+      val week1 = SilverFunctions.getWeekData(combinedDF, 1)
+      val week2 = SilverFunctions.getWeekData(combinedDF, 2)
+      val week3 = SilverFunctions.getWeekData(combinedDF, 3)
+      val week4 = SilverFunctions.getWeekData(combinedDF, 4)
+      val week5 = SilverFunctions.getWeekData(combinedDF, 5)
 
       // Block Review
-      // println("--- Weeks 1-5 Review ---")
-      // week1.show(2, truncate = false)
-      // week2.show(2, truncate = false)
-      // week3.show(2, truncate = false)
-      // week4.show(2, truncate = false)
-      // week5.show(2, truncate = false)
-      // println("--- End Weeks 1-5 Review ---")
+      println("--- Weeks 1-5 Review ---")
+      week1.show(2, truncate = false)
+      week2.show(2, truncate = false)
+      week3.show(2, truncate = false)
+      week4.show(2, truncate = false)
+      week5.show(2, truncate = false)
+      println("--- End Weeks 1-5 Review ---")
 
       val boroughVol = combinedDF
         .join(
@@ -204,9 +214,9 @@ object SparkJob {
         .orderBy("Borough", "Pickup_Week")
 
       // For testing uncomment this
-      // println("--- Borough Volume Review ---")
-      // boroughVol.show(5, truncate = false)
-      // println("--- End Borough Volume Review ---")
+      println("--- Borough Volume Review ---")
+      boroughVol.show(5, truncate = false)
+      println("--- End Borough Volume Review ---")
 
       val tripTimePerDistance = combinedDF
         .withColumn("TimePerDistance", col("Trip_Time_Min_Converted") / col("trip_distance"))
