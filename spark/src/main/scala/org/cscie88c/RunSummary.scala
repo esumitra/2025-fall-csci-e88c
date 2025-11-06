@@ -1,40 +1,31 @@
 package org.cscie88c
 
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
-import org.cscie88c.spark.{YellowTripSchema, TaxiZoneSchema}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 
 object RunSummary {
 
-  def generateSummary(
-      trips: Dataset[YellowTripSchema],
-      zones: Dataset[TaxiZoneSchema]
-  )(implicit spark: SparkSession): DataFrame = {
+  def generateSummary(df: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    import spark.implicits._
 
-      import spark.implicits._
+    // Row count
+    val recordCount = df.count()
 
-      // Row count
-      val recordCount = trips.count()
+    // Null percentage summary
+    val nullsDF = DataQualityChecks.nullPercentages(df)
+      .withColumnRenamed("null_percent", "value")
+      .withColumn("metric", concat(lit("null_percent_"), col("column")))
+      .select("metric", "value")
 
-      // Nulls
-      val nullsDF = DataQualityChecks.nullPercentages(trips.toDF)
-          .withColumnRenamed("null_percent", "value")
-          .withColumn("metric", concat(lit("null_percent_"), col("column")))
-          .select("metric", "value")
+    // Range checks summary
+    val rangeDF = DataQualityChecks.rangeChecks(df)
+      .select("metric", "value")
 
-      // Range checks
-      val rangeDF = DataQualityChecks.rangeChecks(trips)
-          .selectExpr("stack(3, 'invalid_trip_distance', invalid_trip_distance, 'invalid_fare_amount', invalid_fare_amount, 'invalid_time_order', invalid_time_order) as (metric, value)")
+    // Combine everything together
+    val totalDF = nullsDF
+      .union(rangeDF)
+      .union(Seq(("record_count", recordCount.toDouble)).toDF("metric", "value"))
 
-      // Referential checks
-      val refDF = DataQualityChecks.referentialCheck(trips, zones)
-          .withColumnRenamed("check_type", "metric")
-          .withColumnRenamed("invalid_count", "value")
-
-      // Combine together
-      val totalDF = nullsDF.union(rangeDF).union(refDF)
-          .union(Seq(("record_count", recordCount.toDouble)).toDF("metric", "value"))
-
-      totalDF
+    totalDF
   }
 }
