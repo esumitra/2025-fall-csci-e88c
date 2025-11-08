@@ -16,7 +16,8 @@ project/plugins/project/
 .scala_dependencies
 .worksheet
 
-# idea
+
+#idea
 .idea
 
 # VSC
@@ -86,3 +87,8 @@ logs/
 *.swo
 *~
 .DS_Store
+
+#aws cli stuff
+aws/*
+.aws/*
+awscliv2.zip
