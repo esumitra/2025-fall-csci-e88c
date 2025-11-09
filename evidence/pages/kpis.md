@@ -18,10 +18,11 @@ Peak hour percentage indicates the concentration of trips during high-demand per
   value=value
   where="metric='peak_hour_pct'"
   title="Peak Hour Traffic Percentage"
-  fmt=pct2
+  fmt=num2
+  suffix="%"
 />
 
-This metric shows that **{kpis.filter(d => d.metric === 'peak_hour_pct')[0]?.value.toFixed(1)}%** of all trips occur during peak hours, indicating high demand concentration during busy periods.
+This metric shows that **{kpis.find(d => d.metric === 'peak_hour_pct')?.value.toFixed(1)}%** of all trips occur during peak hours, indicating high demand concentration during busy periods.
 
 ### Revenue Efficiency
 
@@ -33,7 +34,7 @@ This metric shows that **{kpis.filter(d => d.metric === 'peak_hour_pct')[0]?.val
   fmt=usd2
 />
 
-The average revenue per mile is **${kpis.filter(d => d.metric === 'avg_revenue_per_mile')[0]?.value.toFixed(2)}**, which reflects the efficiency of trip monetization across the fleet.
+The average revenue per mile is **${kpis.find(d => d.metric === 'avg_revenue_per_mile')?.value.toFixed(2)}**, which reflects the efficiency of trip monetization across the fleet.
 
 ### Night Operations
 
@@ -42,10 +43,11 @@ The average revenue per mile is **${kpis.filter(d => d.metric === 'avg_revenue_p
   value=value
   where="metric='night_trip_pct'"
   title="Night Trip Percentage"
-  fmt=pct2
+  fmt=num2
+  suffix="%"
 />
 
-**{kpis.filter(d => d.metric === 'night_trip_pct')[0]?.value.toFixed(1)}%** of trips occur during night hours, indicating the importance of 24/7 operations.
+**{kpis.find(d => d.metric === 'night_trip_pct')?.value.toFixed(1)}%** of trips occur during night hours, indicating the importance of 24/7 operations.
 
 ## Comparative Analysis
 
@@ -129,7 +131,8 @@ Lower values indicate more efficient trips (faster travel per unit distance).
   y=pct_of_total
   title="Trip Distribution by Borough"
   yAxisTitle="Percentage of Total Trips"
-  fmt=pct1
+  fmt=num1
+  suffix="%"
 />
 
 ### Borough Trends
@@ -147,19 +150,20 @@ Lower values indicate more efficient trips (faster travel per unit distance).
   y=weekly_pct
   series=pickup_borough
   title="Weekly Borough Share (%)"
-  yAxisTitle="Percentage of Weekly Trips"
-  fmt=pct1
+  yAxisTitle="Percentage of Weekly Trips"  
+  fmt=num1
+  suffix="%"
 />
 
 ## Recommendations
 
 Based on the KPI analysis:
 
-1. **Peak Hour Optimization**: With {kpis.filter(d => d.metric === 'peak_hour_pct')[0]?.value.toFixed(1)}% of trips during peak hours, consider dynamic pricing strategies.
+1. **Peak Hour Optimization**: With {kpis.find(d => d.metric === 'peak_hour_pct')?.value.toFixed(1)}% of trips during peak hours, consider dynamic pricing strategies.
 
-2. **Revenue Enhancement**: Current revenue per mile is ${kpis.filter(d => d.metric === 'avg_revenue_per_mile')[0]?.value.toFixed(2)} - explore route optimization opportunities.
+2. **Revenue Enhancement**: Current revenue per mile is ${kpis.find(d => d.metric === 'avg_revenue_per_mile')?.value.toFixed(2)} - explore route optimization opportunities.
 
-3. **Night Service**: {kpis.filter(d => d.metric === 'night_trip_pct')[0]?.value.toFixed(1)}% night trips suggest good 24/7 coverage, maintain this service level.
+3. **Night Service**: {kpis.find(d => d.metric === 'night_trip_pct')?.value.toFixed(1)}% night trips suggest good 24/7 coverage, maintain this service level.
 
 ---
 
