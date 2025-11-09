@@ -23,7 +23,7 @@ object SilverJob {
 
     spark.sparkContext.setLogLevel("ERROR")
     import spark.implicits._
-    val outputFiles:Boolean = false
+    val outputFiles:Boolean = true
     cleanData(TripsParquetPath, TaxiZonesCsvPath, outputFiles)(spark)
     spark.stop()
 
@@ -226,10 +226,12 @@ object SilverJob {
     if (rejectRate > dqThreshold)
       throw new RuntimeException(f"❌ FAIL-FAST: Rule [$ruleName] reject rate ${rejectRate * 100}%.2f%% exceeds ${dqThreshold * 100}%.1f%% threshold.")
 
-    if (outputFiles) {
+    if (outputFiles && rejectedCount > 0) {
       val rejectsCsvOut = s"$SilverRoot/rejects_${ruleName}"
       Utilities.csvOutput(rejects,rejectsCsvOut,rejectedCount.toInt,col("tpep_pickup_datetime_est"))
       println(s"Rejects written to: $rejectsCsvOut")
+    } else if (outputFiles && rejectedCount == 0) {
+      println(s"No rejects for rule: $ruleName - skipping file creation")
     }
 
 

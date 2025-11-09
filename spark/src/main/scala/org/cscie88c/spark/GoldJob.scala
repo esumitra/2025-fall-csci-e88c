@@ -140,6 +140,43 @@ object GoldJob {
     summaryDF.write.mode("overwrite").parquet(s"$runPath/kpi_summary")
     println(s"✅ Saved summary KPIs: $runPath/kpi_summary")
 
+    // ================================================================
+    // Evidence-compatible CSV exports
+    // ================================================================
+    println("\n=== EXPORTING DATA FOR EVIDENCE VISUALIZATION ===")
+    val evidencePath = s"$goldRoot/evidence"
+    
+    // Export KPIs as CSVs for Evidence
+    weeklyTripVolume
+      .coalesce(1)
+      .write
+      .mode("overwrite")
+      .option("header", "true")
+      .csv(s"$evidencePath/weekly_trip_volume")
+    
+    weeklyTripsRevenue
+      .coalesce(1)
+      .write
+      .mode("overwrite")
+      .option("header", "true")
+      .csv(s"$evidencePath/weekly_trips_revenue")
+      
+    avgTimeVsDistance
+      .coalesce(1)
+      .write
+      .mode("overwrite")
+      .option("header", "true")
+      .csv(s"$evidencePath/time_vs_distance")
+      
+    summaryDF
+      .coalesce(1)
+      .write
+      .mode("overwrite")
+      .option("header", "true")
+      .csv(s"$evidencePath/kpi_summary")
+    
+    println(s"✅ Evidence CSV files exported to: $evidencePath")
+
     println("\n=== GOLD JOB COMPLETE ✅ ===")
   }
 
