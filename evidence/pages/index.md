@@ -18,7 +18,8 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
     value=value
     where="metric='peak_hour_pct'"
     title="Peak Hour Traffic"
-    fmt=pct1
+    fmt=num1
+    suffix="%"
   />
   <BigValue 
     data={kpi_data} 
@@ -32,7 +33,8 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
     value=value
     where="metric='night_trip_pct'"
     title="Night Trips"
-    fmt=pct1
+    fmt=num1
+    suffix="%"
   />
 </div>
 
