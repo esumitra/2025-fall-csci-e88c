@@ -5,29 +5,26 @@ import org.apache.spark.sql.functions._
 
 import java.time.format.DateTimeFormatter
 
-
 object GoldJob {
-
 
   val GoldRoot = "/opt/spark-data/gold"
 
-
   def main(args: Array[String]): Unit = {
 
-    val spark = SparkSession.builder()
+    val spark = SparkSession
+      .builder()
       .appName("GoldJob-KPI-Compute")
       .master("local[*]")
       .getOrCreate()
 
     spark.sparkContext.setLogLevel("ERROR")
 
-
     processKPIS(GoldRoot)(spark)
 
     spark.stop()
   }
 
-  def processKPIS(goldRoot: String)(spark:SparkSession) = {
+  def processKPIS(goldRoot: String)(spark: SparkSession) = {
     import spark.implicits._
     println("\n=== GOLD JOB: READING SILVER CONFORMED DATA ===")
     val silverDF = spark.read.parquet(Utilities.SilverTripsConformed)
@@ -44,9 +41,12 @@ object GoldJob {
     // ================================================================
     // KPI 2 — Peak Hour Trip Percentage (7–9 AM & 5–7 PM)
     // ================================================================
-    val peakTrips:Double = silverDF.filter(
-      ($"pickup_hour".between(7, 9)) || ($"pickup_hour".between(17, 19))
-    ).count().toDouble
+    val peakTrips: Double = silverDF
+      .filter(
+        ($"pickup_hour".between(7, 9)) || ($"pickup_hour".between(17, 19))
+      )
+      .count()
+      .toDouble
 
     val totalTrips = silverDF.count().toDouble
     val peakHourPct = (peakTrips / totalTrips) * 100
@@ -85,9 +85,11 @@ object GoldJob {
     // ================================================================
     // KPI 6 — Night Trip Percentage (10 PM – 4 AM)
     // ================================================================
-    val nightTrips:Double = silverDF.filter(
-      ($"pickup_hour" >= 22) || ($"pickup_hour" <= 4)
-    ).count()
+    val nightTrips: Double = silverDF
+      .filter(
+        ($"pickup_hour" >= 22) || ($"pickup_hour" <= 4)
+      )
+      .count()
 
     val nightPct = (nightTrips / totalTrips) * 100
 
@@ -111,7 +113,8 @@ object GoldJob {
     // ================================================================
     // Step — Create a new run folder for validation
     // ================================================================
-    val runId = java.time.LocalDateTime.now()
+    val runId = java.time.LocalDateTime
+      .now()
       .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
 
     val runPath = s"$goldRoot/kpis/run_$runId"
@@ -120,13 +123,19 @@ object GoldJob {
     // ================================================================
     // Save KPI outputs
     // ================================================================
-    weeklyTripVolume.write.mode("overwrite").parquet(s"$runPath/weekly_trip_volume")
+    weeklyTripVolume.write
+      .mode("overwrite")
+      .parquet(s"$runPath/weekly_trip_volume")
     println(s"✅ Saved: $runPath/weekly_trip_volume")
 
-    weeklyTripsRevenue.write.mode("overwrite").parquet(s"$runPath/weekly_trips_revenue")
+    weeklyTripsRevenue.write
+      .mode("overwrite")
+      .parquet(s"$runPath/weekly_trips_revenue")
     println(s"✅ Saved: $runPath/weekly_trips_revenue")
 
-    avgTimeVsDistance.write.mode("overwrite").parquet(s"$runPath/time_vs_distance")
+    avgTimeVsDistance.write
+      .mode("overwrite")
+      .parquet(s"$runPath/time_vs_distance")
     println(s"✅ Saved: $runPath/time_vs_distance")
 
     // Summary metrics for quick UI access
@@ -136,7 +145,7 @@ object GoldJob {
       ("night_trip_pct", nightPct)
     ).toDF("metric", "value")
 
-    Utilities.parquetOutput(summaryDF,s"$runPath/kpi_summary")
+    Utilities.parquetOutput(summaryDF, s"$runPath/kpi_summary")
     summaryDF.write.mode("overwrite").parquet(s"$runPath/kpi_summary")
     println(s"✅ Saved summary KPIs: $runPath/kpi_summary")
 
@@ -145,7 +154,7 @@ object GoldJob {
     // ================================================================
     println("\n=== EXPORTING DATA FOR EVIDENCE VISUALIZATION ===")
     val evidencePath = s"$goldRoot/evidence"
-    
+
     // Export KPIs as CSVs for Evidence
     weeklyTripVolume
       .coalesce(1)
@@ -153,28 +162,28 @@ object GoldJob {
       .mode("overwrite")
       .option("header", "true")
       .csv(s"$evidencePath/weekly_trip_volume")
-    
+
     weeklyTripsRevenue
       .coalesce(1)
       .write
       .mode("overwrite")
       .option("header", "true")
       .csv(s"$evidencePath/weekly_trips_revenue")
-      
+
     avgTimeVsDistance
       .coalesce(1)
       .write
       .mode("overwrite")
       .option("header", "true")
       .csv(s"$evidencePath/time_vs_distance")
-      
+
     summaryDF
       .coalesce(1)
       .write
       .mode("overwrite")
       .option("header", "true")
       .csv(s"$evidencePath/kpi_summary")
-    
+
     println(s"✅ Evidence CSV files exported to: $evidencePath")
 
     println("\n=== GOLD JOB COMPLETE ✅ ===")

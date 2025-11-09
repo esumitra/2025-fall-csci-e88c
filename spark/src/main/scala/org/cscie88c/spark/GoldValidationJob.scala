@@ -1,6 +1,6 @@
 package org.cscie88c.spark
 
-import org.apache.spark.sql.{SparkSession, DataFrame}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import java.io.File
 
@@ -11,13 +11,13 @@ object GoldValidationJob {
 
   def main(args: Array[String]): Unit = {
 
-    val spark = SparkSession.builder()
+    val spark = SparkSession
+      .builder()
       .appName("Gold-Validation-Job")
       .master("local[*]")
       .getOrCreate()
 
     spark.sparkContext.setLogLevel("ERROR")
-    import spark.implicits._
 
     // ================================================================
     // Step 1 — Locate two latest KPI runs
@@ -43,10 +43,12 @@ object GoldValidationJob {
     // ================================================================
     // Step 2 — Load the weekly_trip_volume metric
     // ================================================================
-    val currentVol = spark.read.parquet(s"$currRun/weekly_trip_volume")
+    val currentVol = spark.read
+      .parquet(s"$currRun/weekly_trip_volume")
       .withColumnRenamed("trip_volume", "trip_volume_curr")
 
-    val previousVol = spark.read.parquet(s"$prevRun/weekly_trip_volume")
+    val previousVol = spark.read
+      .parquet(s"$prevRun/weekly_trip_volume")
       .withColumnRenamed("trip_volume", "trip_volume_prev")
 
     // ================================================================
@@ -60,7 +62,9 @@ object GoldValidationJob {
       )
       .withColumn(
         "change_pct",
-        (col("trip_volume_curr") - col("trip_volume_prev")) / col("trip_volume_prev")
+        (col("trip_volume_curr") - col("trip_volume_prev")) / col(
+          "trip_volume_prev"
+        )
       )
 
     // Flag anomalies (25% increase or decrease)
@@ -73,7 +77,8 @@ object GoldValidationJob {
 
     anomalies
       .coalesce(1)
-      .write.mode("overwrite")
+      .write
+      .mode("overwrite")
       .option("header", "true")
       .csv(outDir)
 

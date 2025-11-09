@@ -1,32 +1,36 @@
 package org.cscie88c.spark
 
-import org.apache.spark.sql.SparkSession
-import org.cscie88c.core.Utils
+import org.apache.spark.sql.functions.{count, when, col,desc}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object BronzeJob {
   def main(args: Array[String]): Unit = {
-    val spark = SparkSession.builder()
+    val spark = SparkSession
+      .builder()
       .appName("SampleSparkJob")
       .master("local[*]")
       .getOrCreate()
 
-    import spark.implicits._
 
-
-    val df = TaxiZones.zonesFromFile("/opt/spark-data/taxi_zone_lookup.csv")(spark)
-    val pq = TripData.loadParquetData("/opt/spark-data/yellow_tripdata_2025-01.parquet")(spark)
+    val df =
+      TaxiZones.zonesFromFile("/opt/spark-data/taxi_zone_lookup.csv")(spark)
+    val pq = TripData.loadParquetData(
+      "/opt/spark-data/yellow_tripdata_2025-01.parquet"
+    )(spark)
     println("Zone sample")
     df.show(10)
-    println("Null percentatages by column:" )
+    println("Null percentatages by column:")
     calculateNullPercentages(pq)(spark).show(100, false)
     spark.stop()
   }
 
-
-  def calculateNullPercentages(df: DataFrame)(spark: SparkSession): DataFrame = {
+  def calculateNullPercentages(
+      df: DataFrame
+  )(spark: SparkSession): DataFrame = {
     // Calculate counts for all columns in a single pass
     val exprs = df.columns.map { colName =>
-      (count(when(col(colName).isNull, true)) / count("*") * 100).alias(s"${colName}_null_pct")
+      (count(when(col(colName).isNull, true)) / count("*") * 100)
+        .alias(s"${colName}_null_pct")
     }
 
     // Run the aggregation
@@ -38,7 +42,8 @@ object BronzeJob {
     }
 
     // Convert to DataFrame
-    spark.createDataFrame(result)
+    spark
+      .createDataFrame(result)
       .toDF("column_name", "null_percentage")
       .orderBy(desc("null_percentage"))
   }

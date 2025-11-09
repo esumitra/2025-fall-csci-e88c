@@ -2,7 +2,7 @@ package org.cscie88c.spark
 
 import org.apache.spark.sql.{SparkSession, DataFrame}
 
-case class TripData (
+case class TripData(
     VendorID: Int,
     tpep_pickup_datetime: java.sql.Timestamp,
     tpep_dropoff_datetime: java.sql.Timestamp,
@@ -25,16 +25,13 @@ case class TripData (
     cbd_congestion_fee: Double
 )
 object TripData {
-  def loadParquetData(filePath: String) (implicit spark: SparkSession): DataFrame = {
-    import spark.implicits._
-    spark
-      .read
+  def loadParquetData(
+      filePath: String
+  )(implicit spark: SparkSession): DataFrame = {
+    spark.read
       .option("mergeSchema", "true")
       .parquet(filePath)
 
-      
-
   }
-
 
 }

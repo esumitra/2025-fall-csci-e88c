@@ -11,7 +11,12 @@ object Utilities {
       .option("compression", "snappy")
       .parquet(fileName)
   }
-  def csvOutput(dataFrame: DataFrame, fileName: String, rowLimit: Int, sortExpr: Column): Unit = {
+  def csvOutput(
+      dataFrame: DataFrame,
+      fileName: String,
+      rowLimit: Int,
+      sortExpr: Column
+  ): Unit = {
     dataFrame
       .orderBy(sortExpr)
       .limit(rowLimit)
