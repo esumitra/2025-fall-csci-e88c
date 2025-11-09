@@ -2,11 +2,11 @@
 title: NYC Taxi Analytics Dashboard
 ---
 
-# 🚕 NYC Taxi Analytics Dashboard
+# NYC Taxi Analytics Dashboard
 
 Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensive insights into taxi trip patterns, revenue trends, and operational KPIs derived from NYC taxi data.
 
-## 📊 Key Performance Indicators
+## Key Performance Indicators
 
 ```sql peak_hour
   select value from taxi_analytics.kpi_summary where metric = 'peak_hour_pct'
@@ -41,7 +41,7 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
   />
 </div>
 
-## 📈 Weekly Revenue Trends
+## Weekly Revenue Trends
 
 ```sql revenue_trends
   select 
@@ -80,7 +80,7 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
   fmt=usd2
 />
 
-## 🏙️ Trip Volume by Borough
+## Trip Volume by Borough
 
 ```sql borough_volume
   select 
@@ -116,7 +116,7 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
   fmt=num0
 />
 
-## ⏱️ Trip Duration vs Distance Analysis
+## Trip Duration vs Distance Analysis
 
 ```sql time_distance
   select 
@@ -148,7 +148,7 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
   y2AxisTitle="Distance (miles)"
 />
 
-## 📋 Data Summary
+## Data Summary
 
 ```sql data_summary
   select 
@@ -180,7 +180,7 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
 
 <DataTable data={data_summary} />
 
-## 🔄 Data Refresh Information
+## Data Refresh Information
 
 This dashboard displays the latest available data from your Spark processing pipeline. To refresh the data:
 
