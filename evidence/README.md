@@ -1,8 +1,8 @@
-# 🚕 NYC Taxi Analytics Dashboard
+# NYC Taxi Analytics Dashboard
 
 This Evidence dashboard provides comprehensive visualization and analysis of NYC taxi data, built on top of a Spark data processing pipeline with DuckDB for fast analytics.
 
-## 📊 Dashboard Pages
+## Dashboard Pages
 
 ### 1. Main Dashboard (`/`)
 - **Key Performance Indicators**: Peak hour percentage, revenue per mile, night trips percentage
@@ -22,7 +22,7 @@ This Evidence dashboard provides comprehensive visualization and analysis of NYC
 - Data distribution analysis
 - Pipeline health monitoring
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js and npm installed
@@ -51,7 +51,7 @@ npm run dev
    npm run dev
    ```
 
-## 🔄 Data Refresh
+## Data Refresh
 
 ### After Running Spark Jobs
 ```bash
@@ -63,21 +63,21 @@ npm run update:dashboard
 npm run update:duckdb
 ```
 
-## 📈 Key Features
+## Key Features
 
 - **Interactive Visualizations**: Line charts, bar charts, scatter plots, and KPI cards
 - **Real-time Data**: Automatically refreshes with latest Spark pipeline outputs
 - **Data Quality Monitoring**: Anomaly detection and completeness checks
 - **Multi-page Analysis**: Overview, detailed KPIs, and monitoring pages
 
-## 🛠️ Technical Details
+## Technical Details
 
 - **Database**: DuckDB for fast analytics on parquet files
 - **Data Source**: Spark Gold layer (`data/gold/kpis/`)
 - **Framework**: Evidence.dev for interactive dashboards
 - **Visualizations**: Built-in Evidence components with custom styling
 
-## 📚 Resources
+## Resources
 
 - [Evidence Documentation](https://docs.evidence.dev/)
 - [Main Project Documentation](../README.md)
