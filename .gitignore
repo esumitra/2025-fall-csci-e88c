@@ -16,8 +16,7 @@ project/plugins/project/
 .scala_dependencies
 .worksheet
 
-
-#idea
+# idea
 .idea
 
 # VSC
@@ -36,8 +35,54 @@ project/plugins/project/
 # homework files
 scalaHomework.zip
 
+# Data files
 data/gold/
 data/silver/
 data/*.parquet
 data/*/*.parquet
 data/*/*.csv
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm
+.yarn
+.pnp.*
+
+# Evidence
+evidence/node_modules/
+evidence/.svelte-kit/
+evidence/build/
+evidence/.evidence/
+evidence/.env
+evidence/.env.local
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
