@@ -49,7 +49,7 @@ lazy val commonSettings = Seq(
       "-Yrangepos"
     ),
     Compile / run / fork := true, // cleaner to run programs in a JVM different from sbt
-    Compile / discoveredMainClasses := Seq(), // ignore discovered main classes
+    // Compile / discoveredMainClasses := Seq(), // ignore discovered main classes
     // needed to run Spark with Java 17
     run / javaOptions ++= Seq(
       "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
