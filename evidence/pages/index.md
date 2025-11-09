@@ -8,33 +8,36 @@ Welcome to the NYC Taxi Analytics Dashboard! This dashboard provides comprehensi
 
 ## 📊 Key Performance Indicators
 
-```sql kpi_data
-  select * from taxi_analytics.kpi_summary
+```sql peak_hour
+  select value from taxi_analytics.kpi_summary where metric = 'peak_hour_pct'
+```
+
+```sql avg_revenue
+  select value from taxi_analytics.kpi_summary where metric = 'avg_revenue_per_mile'
+```
+
+```sql night_trips
+  select value from taxi_analytics.kpi_summary where metric = 'night_trip_pct'
 ```
 
 <div class="grid grid-cols-3 gap-4">
   <BigValue 
-    data={kpi_data} 
+    data={peak_hour} 
     value=value
-    where="metric='peak_hour_pct'"
     title="Peak Hour Traffic"
-    fmt=num1
-    suffix="%"
+    fmt='#,##0.00"%"'
   />
   <BigValue 
-    data={kpi_data} 
+    data={avg_revenue} 
     value=value
-    where="metric='avg_revenue_per_mile'"
     title="Revenue per Mile"
     fmt=usd2
   />
   <BigValue 
-    data={kpi_data} 
+    data={night_trips} 
     value=value
-    where="metric='night_trip_pct'"
     title="Night Trips"
-    fmt=num1
-    suffix="%"
+    fmt='#,##0.00"%"'
   />
 </div>
 
