@@ -1,0 +1,4 @@
+name: taxi_analytics
+type: duckdb
+options:
+  filename: taxi_analytics.duckdb

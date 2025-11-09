@@ -1,0 +1,30 @@
+{
+  "name": "taxi-data-pipeline",
+  "version": "1.0.0",
+  "description": "Taxi data analysis pipeline with Spark and Evidence visualization",
+  "scripts": {
+    "dev": "cd evidence && npm run dev",
+    "build": "cd evidence && npm run build", 
+    "start": "cd evidence && npm start",
+    "evidence:setup": "npx degit evidence-dev/template evidence && cd evidence && npm install",
+    "evidence:install": "cd evidence && npm install",
+    "spark:silver": "sbt 'spark/assembly' && docker exec -it spark-master /opt/spark/bin/spark-submit --class org.cscie88c.spark.SilverJob --master 'local[*]' /opt/spark-apps/SparkJob.jar",
+    "spark:gold": "sbt 'spark/assembly' && docker exec -it spark-master /opt/spark/bin/spark-submit --class org.cscie88c.spark.GoldJob --master 'local[*]' /opt/spark-apps/SparkJob.jar",
+    "update:dashboard": "cd evidence && ./scripts/update-latest-run.sh",
+    "update:duckdb": "./scripts/create-duckdb.sh",
+    "pipeline:full": "npm run docker:up && npm run spark:silver && npm run spark:gold && npm run update:dashboard && npm run dev",
+    "setup:all": "npm install && npm run evidence:setup && npm run docker:up",
+    "sync-data-manual": "mkdir -p evidence/sources/data && find data/gold/evidence -name '*.csv' -exec cp {} evidence/sources/data/ \\; 2>/dev/null || echo 'No CSV files found to sync'",
+    "docker:up": "docker-compose -f docker-compose-spark.yml up -d",
+    "docker:down": "docker-compose -f docker-compose-spark.yml down"
+  },
+  "devDependencies": {
+    "@evidence-dev/evidence": "^20.0.0"
+  },
+  "dependencies": {
+    "pandas": "^1.0.0"
+  },
+  "keywords": ["spark", "scala", "evidence", "data-visualization", "taxi-data"],
+  "author": "Your Name",
+  "license": "MIT"
+}
