@@ -158,6 +158,102 @@ For test files.
 
 `sbt "test:scalafix RemoveUnused"`
 
+## NYC Taxi Analytics Dashboard - Quick Start
+
+### Prerequisites
+
+- Node.js (v18 or later)
+- Docker and Docker Compose
+- Java 17
+- sbt 1.9.2+
+
+### Installation
+
+1. **Install project dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Install Evidence dependencies:**
+   ```bash
+   cd evidence
+   npm install
+   cd ..
+   ```
+
+### Running the Pipeline
+
+**Option 1: Automated (Recommended)**
+
+Run the complete pipeline with one command:
+
+```bash
+npm run pipeline:full
+```
+
+This will:
+- Start Docker Spark containers
+- Process the taxi data (Silver job)
+- Calculate KPIs (Gold job)
+- Update the dashboard data
+- Start the Evidence development server
+
+**Option 2: Manual Steps**
+
+If you prefer to run each step individually:
+
+1. Start Docker containers:
+   ```bash
+   npm run docker:up
+   ```
+
+2. Run data processing:
+   ```bash
+   npm run spark:silver
+   npm run spark:gold
+   ```
+
+3. Update dashboard database:
+   ```bash
+   npm run update:duckdb
+   ```
+
+4. Start the dashboard:
+   ```bash
+   npm run dev
+   ```
+
+### View the Dashboard
+
+Open your browser to:
+```
+http://localhost:3000
+```
+
+### Stop Everything
+
+Stop Docker containers:
+```bash
+npm run docker:down
+```
+
+Stop Evidence (press Ctrl+C in the terminal running the dev server)
+
+### Troubleshooting
+
+**Dashboard shows no data:**
+- Make sure Spark jobs completed successfully
+- Run `npm run update:duckdb` to refresh the database
+- Restart the Evidence server
+
+**Docker errors:**
+- Verify Docker is running: `docker ps`
+- Check logs: `docker logs spark-master`
+
+**Build errors:**
+- Ensure Java 17 is installed: `java -version`
+- Clean build: `sbt clean`
+
 ## License
 Copyright 2025, Edward Sumitra
 
