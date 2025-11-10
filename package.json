@@ -21,9 +21,6 @@
   "devDependencies": {
     "@evidence-dev/evidence": "^20.0.0"
   },
-  "dependencies": {
-    "pandas": "^1.0.0"
-  },
   "keywords": ["spark", "scala", "evidence", "data-visualization", "taxi-data"],
   "author": "Your Name",
   "license": "MIT"
