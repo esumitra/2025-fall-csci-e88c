@@ -97,8 +97,17 @@ lazy val beam = project
   .dependsOn(core)
   .enablePlugins(JavaAppPackaging)
 
+lazy val kafka = project
+  .in(file("kafka"))
+  .settings(
+    commonSettings,
+    // Kafka module settings
+  )
+  .dependsOn(core)
+  .enablePlugins(JavaAppPackaging)
+
 lazy val root = (project in file("."))
-  .aggregate(core, cli, spark, beam)
+  .aggregate(core, cli, spark, beam, kafka)
   .settings(
     commonSettings,
     name := "multi-module-project",
